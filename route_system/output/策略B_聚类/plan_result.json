@@ -1,0 +1,261 @@
+{
+  "strategy": "最近邻聚类分组",
+  "total_points": 82,
+  "total_days": 17,
+  "total_distance_km": 53.7,
+  "total_hours": 66.1,
+  "days": [
+    {
+      "day": 1,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区晏家",
+        "重庆市长寿区晏家二期公租房",
+        "重庆市长寿区山水国际",
+        "重庆市长寿区育才路37号",
+        "重庆市长寿区育才路"
+      ],
+      "drive_distance_km": 2.7,
+      "drive_time_min": 4.6,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 2,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区尚孝路24号朵力江畔",
+        "重庆市长寿区铭宇江南",
+        "重庆市长寿区定慧晓月",
+        "重庆市长寿区火神街154号",
+        "重庆市长寿区凤城街道向阳路30号金鼎新视界"
+      ],
+      "drive_distance_km": 3.0,
+      "drive_time_min": 5.1,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 3,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区隆德丽都",
+        "重庆市长寿区富泽园",
+        "重庆市长寿区顺风庭",
+        "重庆市长寿区合谊榕府",
+        "重庆市长寿区凤西苑"
+      ],
+      "drive_distance_km": 2.5,
+      "drive_time_min": 4.2,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 4,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区金山豪苑",
+        "重庆市长寿区长寿湖镇金山街25号2-8-2号",
+        "重庆市长寿区慈善会",
+        "重庆市长寿区凤城大院",
+        "重庆市长寿区凤城大厦"
+      ],
+      "drive_distance_km": 1.4,
+      "drive_time_min": 2.4,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 5,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区寿城水岸B区",
+        "重庆市长寿区寿城水岸D区",
+        "重庆市长寿区寿城水岸",
+        "重庆市长寿区长寿206路",
+        "重庆市长寿区同元御府华庭"
+      ],
+      "drive_distance_km": 0.9,
+      "drive_time_min": 1.6,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 6,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区黄桷路12号黄桷逸景",
+        "重庆市长寿区云顶香榭",
+        "重庆市长寿区云峰阁",
+        "重庆市长寿区桃花大道69号",
+        "重庆市长寿区菩提街道桃花大道58号"
+      ],
+      "drive_distance_km": 1.6,
+      "drive_time_min": 2.8,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 7,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区利安·凤城学府",
+        "重庆市长寿区桃源西四路7号",
+        "重庆市长寿区菩提印象",
+        "重庆市长寿区御临院",
+        "重庆市长寿区美丽泽京"
+      ],
+      "drive_distance_km": 1.5,
+      "drive_time_min": 2.6,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 8,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区桃西雅图",
+        "重庆市长寿区桃花西路8号1幢",
+        "重庆市长寿区荣华苑小区",
+        "重庆市长寿区凤城街道桃花大道58号",
+        "重庆市长寿区净化厂家属院(西门)"
+      ],
+      "drive_distance_km": 1.0,
+      "drive_time_min": 1.8,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 9,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区桃西二支路88号中央公园一组团",
+        "重庆市长寿区金科世界城",
+        "重庆市长寿区保利壹号",
+        "重庆市长寿区朵力6号原舍",
+        "重庆市长寿区圣瑞华府"
+      ],
+      "drive_distance_km": 1.8,
+      "drive_time_min": 3.2,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 10,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区东海假日花园",
+        "重庆市长寿区阳光小镇",
+        "重庆市长寿区新康璞山",
+        "重庆市长寿区晶山新城际",
+        "重庆市长寿区幸福大道泽京铂宸小区"
+      ],
+      "drive_distance_km": 2.2,
+      "drive_time_min": 3.7,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 11,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区宝润国际",
+        "重庆市长寿区水木年华",
+        "重庆市长寿区盛世桃源",
+        "重庆市长寿区泊景湾",
+        "重庆市长寿区香堤雅郡"
+      ],
+      "drive_distance_km": 1.6,
+      "drive_time_min": 2.8,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 12,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区森香蓝庭",
+        "重庆市长寿区重庆市菩提东路2666号",
+        "重庆市长寿区书香雅苑",
+        "重庆市长寿区渡舟街道483号",
+        "重庆市长寿区大地春风源"
+      ],
+      "drive_distance_km": 7.2,
+      "drive_time_min": 12.4,
+      "stop_time_min": 75,
+      "total_time_hours": 4.0
+    },
+    {
+      "day": 13,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区东朝尚都",
+        "重庆市长寿区中央公寓",
+        "重庆市长寿区阳光世纪城",
+        "重庆市长寿区圣天湖东区",
+        "重庆市长寿区圣天湖西区"
+      ],
+      "drive_distance_km": 0.7,
+      "drive_time_min": 1.3,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 14,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区菩提街道文苑南一路88号长寿金科集美文苑",
+        "重庆市长寿区池上春天",
+        "重庆市长寿区凤城华府·公园里24幢",
+        "重庆市长寿区凤城华府",
+        "重庆市长寿区碧园路669号长寿碧桂园豪园"
+      ],
+      "drive_distance_km": 2.1,
+      "drive_time_min": 3.7,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 15,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区璟溪府",
+        "重庆市长寿区文林雅居",
+        "重庆市长寿区名桂园",
+        "重庆市长寿区杏林路3号幸福满庭",
+        "重庆市长寿区半岛香颂东西苑"
+      ],
+      "drive_distance_km": 3.2,
+      "drive_time_min": 5.4,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 16,
+      "point_count": 5,
+      "points": [
+        "重庆市长寿区丰景苑",
+        "重庆市长寿区渝发·香堤澜湾",
+        "重庆市长寿区时代国际",
+        "重庆市长寿区在水一方1期",
+        "重庆市长寿区德瑞悦城"
+      ],
+      "drive_distance_km": 3.1,
+      "drive_time_min": 5.4,
+      "stop_time_min": 75,
+      "total_time_hours": 3.9
+    },
+    {
+      "day": 17,
+      "point_count": 2,
+      "points": [
+        "重庆市长寿区长风厂",
+        "重庆市长寿区新市华府"
+      ],
+      "drive_distance_km": 17.2,
+      "drive_time_min": 29.6,
+      "stop_time_min": 30,
+      "total_time_hours": 3.6
+    }
+  ]
+}

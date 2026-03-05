@@ -1,0 +1,16 @@
+{
+  "策略A_TSP": {
+    "total_days": 18,
+    "total_distance_km": 50.2,
+    "total_hours": 68.6,
+    "avg_day_distance_km": 2.8,
+    "overtime_days": 0
+  },
+  "策略B_聚类": {
+    "total_days": 17,
+    "total_distance_km": 53.7,
+    "total_hours": 66.1,
+    "avg_day_distance_km": 3.2,
+    "overtime_days": 0
+  }
+}

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_f81dbd199af73bce33b4f3345362041d {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}.folium-map{position:absolute;top:0;left:0;right:0;bottom:0}</style></head>
+<body>
+    
+    
+            <div class="folium-map" id="map_f81dbd199af73bce33b4f3345362041d" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_f81dbd199af73bce33b4f3345362041d = L.map(
+                "map_f81dbd199af73bce33b4f3345362041d",
+                {
+                    center: [29.8791345, 107.12420850000001],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 14,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_b7e7454ddcf149bb73a8ad747c72b1d8 = L.tileLayer(
+                "https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn\u0026size=1\u0026scale=2\u0026style=8\u0026x={x}\u0026y={y}\u0026z={z}",
+                {
+  "minZoom": 0,
+  "maxZoom": 18,
+  "maxNativeZoom": 18,
+  "noWrap": false,
+  "attribution": "\u9ad8\u5fb7\u5730\u56fe",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_b7e7454ddcf149bb73a8ad747c72b1d8.addTo(map_f81dbd199af73bce33b4f3345362041d);
+        
+    
+            var marker_9aa9d53e3641d53f131902e4d8113281 = L.marker(
+                [29.802682, 107.139182],
+                {
+}
+            ).addTo(map_f81dbd199af73bce33b4f3345362041d);
+        
+    
+            var div_icon_cc9b05f3d6ae51f2e626f771d85df717 = L.divIcon({
+  "html": "\u003cdiv style=\"background:#00AA00;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)\"\u003e1\u003c/div\u003e",
+  "iconSize": [28, 28],
+  "iconAnchor": [14, 14],
+  "className": "empty",
+});
+        
+    
+                marker_9aa9d53e3641d53f131902e4d8113281.setIcon(div_icon_cc9b05f3d6ae51f2e626f771d85df717);
+            
+    
+            var marker_20f5a73edf19236407d84bc479a198a7 = L.marker(
+                [29.802682, 107.139182],
+                {
+}
+            ).addTo(map_f81dbd199af73bce33b4f3345362041d);
+        
+    
+            var div_icon_b981f792b62b7b33858cb809f6dd1178 = L.divIcon({
+  "html": "\u003cdiv style=\"background:rgba(255,255,255,.92);border:1px solid #666;border-radius:3px;padding:2px 6px;font-size:12px;font-weight:bold;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)\"\u003e1.\u957f\u98ce\u5382\u003c/div\u003e",
+  "iconSize": [200, 24],
+  "iconAnchor": [-18, 12],
+  "className": "empty",
+});
+        
+    
+                marker_20f5a73edf19236407d84bc479a198a7.setIcon(div_icon_b981f792b62b7b33858cb809f6dd1178);
+            
+    
+            var marker_afa99c2c1d5f0fa87c8d5490199e9c76 = L.marker(
+                [29.955587, 107.109235],
+                {
+}
+            ).addTo(map_f81dbd199af73bce33b4f3345362041d);
+        
+    
+            var div_icon_7b3631ffba64039ae972aa1725940254 = L.divIcon({
+  "html": "\u003cdiv style=\"background:#CC0000;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)\"\u003e2\u003c/div\u003e",
+  "iconSize": [28, 28],
+  "iconAnchor": [14, 14],
+  "className": "empty",
+});
+        
+    
+                marker_afa99c2c1d5f0fa87c8d5490199e9c76.setIcon(div_icon_7b3631ffba64039ae972aa1725940254);
+            
+    
+            var marker_39b52b38e0f17c2cba4e143daf801544 = L.marker(
+                [29.955587, 107.109235],
+                {
+}
+            ).addTo(map_f81dbd199af73bce33b4f3345362041d);
+        
+    
+            var div_icon_b3c4372a246b3d829d90fbf0d2871787 = L.divIcon({
+  "html": "\u003cdiv style=\"background:rgba(255,255,255,.92);border:1px solid #666;border-radius:3px;padding:2px 6px;font-size:12px;font-weight:bold;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)\"\u003e2.\u65b0\u5e02\u534e\u5e9c\u003c/div\u003e",
+  "iconSize": [200, 24],
+  "iconAnchor": [-18, 12],
+  "className": "empty",
+});
+        
+    
+                marker_39b52b38e0f17c2cba4e143daf801544.setIcon(div_icon_b3c4372a246b3d829d90fbf0d2871787);
+            
+    
+            map_f81dbd199af73bce33b4f3345362041d.fitBounds(
+                [[29.802682, 107.139182], [29.955587, 107.109235]],
+                {"padding": [60, 60]}
+            );
+        
+</script>
+</html>

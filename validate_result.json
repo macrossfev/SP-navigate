@@ -1,0 +1,673 @@
+{
+  "base_point": "中共重庆市自来水有限公司委员会",
+  "total": 83,
+  "ok": 74,
+  "fail": 6,
+  "wrong_district": 3,
+  "results": [
+    {
+      "status": "OK",
+      "input": "中共重庆市自来水有限公司委员会",
+      "formatted": "重庆市南岸区中共重庆市自来水有限公司委员会",
+      "district": "南岸区",
+      "location": "106.555973,29.493673",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区山水国际",
+      "formatted": "重庆市长寿区山水国际",
+      "district": "长寿区",
+      "location": "107.010110,29.820631",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区水木年华",
+      "formatted": "重庆市长寿区长寿水木年华",
+      "district": "长寿区",
+      "location": "107.085880,29.856528",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区半岛香颂东西苑",
+      "formatted": "重庆市长寿区半岛香颂(公交站)",
+      "district": "长寿区",
+      "location": "107.085065,29.867036",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区朵力6号原舍",
+      "formatted": "重庆市长寿区朵力·6号原舍",
+      "district": "长寿区",
+      "location": "107.077840,29.863171",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区大地春风源",
+      "formatted": "重庆市长寿区大地春风源",
+      "district": "长寿区",
+      "location": "107.088724,29.876974",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区东朝尚都",
+      "formatted": "重庆市长寿区东朝尚都",
+      "district": "长寿区",
+      "location": "107.084188,29.857508",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区泊景湾",
+      "formatted": "重庆市长寿区泊景湾",
+      "district": "长寿区",
+      "location": "107.085725,29.848235",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区香山美地",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区凤城大厦",
+      "formatted": "重庆市长寿区凤城大厦(步行街)",
+      "district": "长寿区",
+      "location": "107.072990,29.831136",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区香堤雅郡",
+      "formatted": "重庆市长寿区香堤雅郡",
+      "district": "长寿区",
+      "location": "107.088205,29.844797",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区圣瑞华府",
+      "formatted": "重庆市长寿区圣瑞华府",
+      "district": "长寿区",
+      "location": "107.079286,29.862940",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区文林雅居",
+      "formatted": "重庆市长寿区文林雅居(公交站)",
+      "district": "长寿区",
+      "location": "107.095194,29.854875",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区金山华府",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区名桂园",
+      "formatted": "重庆市长寿区名桂园",
+      "district": "长寿区",
+      "location": "107.087807,29.857630",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区丰景苑",
+      "formatted": "重庆市长寿区丰景苑",
+      "district": "长寿区",
+      "location": "107.081498,29.865568",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区晶山新城际",
+      "formatted": "重庆市长寿区晶山新城际",
+      "district": "长寿区",
+      "location": "107.067921,29.865719",
+      "level": "未知"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区盛世桃源",
+      "formatted": "重庆市长寿区盛世桃源",
+      "district": "长寿区",
+      "location": "107.088011,29.853816",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区宝润国际",
+      "formatted": "重庆市长寿区宝润国际",
+      "district": "长寿区",
+      "location": "107.084280,29.856068",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区寿城水岸B区",
+      "formatted": "重庆市长寿区寿城水岸",
+      "district": "长寿区",
+      "location": "107.068400,29.848574",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区晏家",
+      "formatted": "重庆市长寿区晏家",
+      "district": "长寿区",
+      "location": "106.990829,29.814037",
+      "level": "村庄"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区寿城水岸D区",
+      "formatted": "重庆市长寿区寿城水岸",
+      "district": "长寿区",
+      "location": "107.068400,29.848574",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区定慧晓月",
+      "formatted": "重庆市长寿区定慧晓月",
+      "district": "长寿区",
+      "location": "107.079784,29.822545",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区在水一方",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区森香蓝庭",
+      "formatted": "重庆市长寿区森香蓝庭",
+      "district": "长寿区",
+      "location": "107.027414,29.899331",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区德瑞悦城",
+      "formatted": "重庆市长寿区德瑞悦城",
+      "district": "长寿区",
+      "location": "107.092570,29.887469",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区新市华府",
+      "formatted": "重庆市长寿区新市华府(公交站)",
+      "district": "长寿区",
+      "location": "107.109235,29.955587",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区桃西雅图",
+      "formatted": "重庆市长寿区桃西雅图",
+      "district": "长寿区",
+      "location": "107.075952,29.848884",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区铭宇江南",
+      "formatted": "重庆市长寿区铭宇江南(公交站)",
+      "district": "长寿区",
+      "location": "107.074844,29.807643",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区顺风庭",
+      "formatted": "重庆市长寿区顺风庭(公交站)",
+      "district": "长寿区",
+      "location": "107.062264,29.838401",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区云峰阁",
+      "formatted": "重庆市长寿区云峰阁",
+      "district": "长寿区",
+      "location": "107.075922,29.842632",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区凤西苑",
+      "formatted": "重庆市长寿区凤西苑",
+      "district": "长寿区",
+      "location": "107.066310,29.845259",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区寿城水岸",
+      "formatted": "重庆市长寿区寿城水岸",
+      "district": "长寿区",
+      "location": "107.068400,29.848574",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区晏家七八期",
+      "formatted": "重庆市长寿区晏家",
+      "district": "长寿区",
+      "location": "106.990829,29.814037",
+      "level": "村庄"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区晏家十、十一期",
+      "formatted": "重庆市长寿区晏家",
+      "district": "长寿区",
+      "location": "106.990829,29.814037",
+      "level": "村庄"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区晏家二期公租房",
+      "formatted": "重庆市长寿区晏家",
+      "district": "长寿区",
+      "location": "106.990829,29.814037",
+      "level": "村庄"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区荣华苑小区",
+      "formatted": "重庆市长寿区荣华苑",
+      "district": "长寿区",
+      "location": "107.080446,29.849554",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区瑞豪 财富广场",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区阳光世纪城",
+      "formatted": "重庆市长寿区阳光世纪城",
+      "district": "长寿区",
+      "location": "107.084675,29.861153",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区中央公寓",
+      "formatted": "重庆市长寿区中央公寓",
+      "district": "长寿区",
+      "location": "107.084259,29.858929",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区圣天湖东区",
+      "formatted": "重庆市长寿区圣天湖",
+      "district": "长寿区",
+      "location": "107.081659,29.862511",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区圣天湖西区",
+      "formatted": "重庆市长寿区圣天湖",
+      "district": "长寿区",
+      "location": "107.081659,29.862511",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区东方之骄",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区东方水岸",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区金鼎新视界",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区同元御府华庭",
+      "formatted": "重庆市长寿区同元·御府华庭",
+      "district": "长寿区",
+      "location": "107.063353,29.852311",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区保利壹号",
+      "formatted": "重庆市长寿区保利壹号(公交站)",
+      "district": "长寿区",
+      "location": "107.072887,29.861063",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区新康璞山",
+      "formatted": "重庆市长寿区新康璞山",
+      "district": "长寿区",
+      "location": "107.065561,29.869497",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区菩提印象",
+      "formatted": "重庆市长寿区菩提印象(公交站)",
+      "district": "长寿区",
+      "location": "107.067869,29.859049",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区阳光小镇",
+      "formatted": "重庆市长寿区阳光小镇(公交站)",
+      "district": "长寿区",
+      "location": "107.064682,29.867739",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区璞缇一号",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区渝发·香堤澜湾",
+      "formatted": "重庆市长寿区香堤澜湾",
+      "district": "长寿区",
+      "location": "107.086937,29.870141",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区东海假日花园",
+      "formatted": "重庆市长寿区东海假日花园",
+      "district": "长寿区",
+      "location": "107.062042,29.866229",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区美丽泽京",
+      "formatted": "重庆市长寿区美丽·泽京",
+      "district": "长寿区",
+      "location": "107.070296,29.863358",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区隆德丽都",
+      "formatted": "重庆市长寿区隆德丽都",
+      "district": "长寿区",
+      "location": "107.064197,29.825060",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区中央公园",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区金科世界城",
+      "formatted": "重庆市长寿区金科·世界城",
+      "district": "长寿区",
+      "location": "107.071083,29.855132",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区蓝光幸福满庭",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区净化厂",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区时代国际",
+      "formatted": "重庆市长寿区时代国际",
+      "district": "长寿区",
+      "location": "107.090605,29.869273",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区金山豪园",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区富泽园",
+      "formatted": "重庆市长寿区富泽园(公交站)",
+      "district": "长寿区",
+      "location": "107.060473,29.830234",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区长风厂",
+      "formatted": "重庆市长寿区长风村",
+      "district": "长寿区",
+      "location": "107.139182,29.802682",
+      "level": "村庄"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区凤城大院",
+      "formatted": "重庆市长寿区凤城",
+      "district": "长寿区",
+      "location": "107.072716,29.833657",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区书香雅苑",
+      "formatted": "重庆市长寿区书香雅苑",
+      "district": "长寿区",
+      "location": "107.055059,29.875128",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区合谊榕府",
+      "formatted": "重庆市长寿区合谊榕府",
+      "district": "长寿区",
+      "location": "107.064606,29.842597",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区御临院",
+      "formatted": "重庆市长寿区御临院",
+      "district": "长寿区",
+      "location": "107.066717,29.862948",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区铂宸",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区常春藤",
+      "formatted": "重庆市长寿区",
+      "district": "长寿区",
+      "location": "107.080945,29.857916",
+      "level": "区县"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区璟溪府",
+      "formatted": "重庆市长寿区璟溪府(公交站)",
+      "district": "长寿区",
+      "location": "107.103633,29.861198",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区凤城华府",
+      "formatted": "重庆市长寿区凤城华府",
+      "district": "长寿区",
+      "location": "107.103612,29.853959",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区池上春天",
+      "formatted": "重庆市长寿区池上春天(公交站)",
+      "district": "长寿区",
+      "location": "107.097033,29.846125",
+      "level": "公交地铁站点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区慈善会",
+      "formatted": "重庆市重庆市长寿区慈善会",
+      "district": "长寿区",
+      "location": "107.075534,29.833619",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区云顶香榭",
+      "formatted": "重庆市长寿区云顶香榭",
+      "district": "长寿区",
+      "location": "107.070683,29.838692",
+      "level": "住宅区"
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区朵力江畔",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区民生佳苑",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区凤林江岸小区",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区凤城学府",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区豪园",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "FAIL",
+      "input": "重庆市长寿区公园里",
+      "formatted": "",
+      "district": "",
+      "location": "",
+      "level": ""
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区萤桷逸景小区",
+      "formatted": "重庆市大渡口区逸景小区",
+      "district": "大渡口区",
+      "location": "106.470369,29.432443",
+      "level": "住宅区"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区璟悦府",
+      "formatted": "重庆市城口县璟悦府",
+      "district": "城口县",
+      "location": "108.649391,31.952580",
+      "level": "兴趣点"
+    },
+    {
+      "status": "OK",
+      "input": "重庆市长寿区集美文苑",
+      "formatted": "重庆市集美(重庆市荣昌区黄桷树广场购物中心店)",
+      "district": "荣昌区",
+      "location": "105.593719,29.402833",
+      "level": "兴趣点"
+    }
+  ]
+}
