@@ -25,7 +25,7 @@ class DocxExporter(BaseExporter):
         suffix = f"_{tag}" if tag else ""
         fmt_config: "ExportFormatConfig" = kwargs.get("format_config")
         title = (fmt_config.title if fmt_config and fmt_config.title
-                 else "Route Planning Report")
+                 else "路线规划报告")
         path = os.path.join(output_dir, f"report{suffix}.docx")
 
         doc = Document()
@@ -53,16 +53,16 @@ class DocxExporter(BaseExporter):
         doc.add_paragraph()
         sub = doc.add_paragraph()
         sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = sub.add_run(f"Strategy: {result.strategy_name}")
+        run = sub.add_run(f"策略：{result.strategy_name}")
         run.font.size = Pt(14)
         run.font.color.rgb = RGBColor(100, 100, 100)
 
         doc.add_paragraph()
         info_lines = [
-            f"Total points: {result.total_points}",
-            f"Total days: {result.total_days}",
-            f"Max daily hours: {self.config.constraints.max_daily_hours}",
-            f"Stop per point: {self.config.constraints.stop_time_per_point_min} min",
+            f"总点位：{result.total_points}",
+            f"总天数：{result.total_days}",
+            f"每日最大工时：{self.config.constraints.max_daily_hours} 小时",
+            f"每点停留：{self.config.constraints.stop_time_per_point_min} 分钟",
         ]
         for line in info_lines:
             p = doc.add_paragraph()
@@ -73,9 +73,9 @@ class DocxExporter(BaseExporter):
         doc.add_page_break()
 
         # Summary table
-        doc.add_heading("Schedule Summary", level=1)
+        doc.add_heading("行程汇总", level=1)
         doc.add_paragraph()
-        headers = ["Day", "Points", "Distance(km)", "Drive(min)", "Total(h)"]
+        headers = ["天数", "点位", "距离 (km)", "驾驶 (min)", "总计 (h)"]
         st = doc.add_table(rows=len(result.days) + 2, cols=5,
                            style="Light Grid Accent 1")
         for j, h in enumerate(headers):
@@ -116,17 +116,16 @@ class DocxExporter(BaseExporter):
         # Unassigned points
         if result.unassigned:
             doc.add_page_break()
-            doc.add_heading("Unassigned Points (Outliers)", level=1)
+            doc.add_heading("未分配点位（异常点）", level=1)
             p = doc.add_paragraph()
             threshold = self.config.strategy.options.get("outlier_threshold_km", 5.0)
             p.add_run(
-                f"The following points have nearest-neighbor distance > {threshold} km "
-                f"and are excluded from the main schedule."
+                f"以下点位最近邻距离 > {threshold} km，未包含在主要行程中。"
             )
             doc.add_paragraph()
             ot = doc.add_table(rows=len(result.unassigned) + 1, cols=3,
                                style="Light Grid Accent 1")
-            for j, h in enumerate(["#", "Name", "Nearest(km)"]):
+            for j, h in enumerate(["#", "名称", "最近距离 (km)"]):
                 c = ot.cell(0, j)
                 c.text = h
                 for p in c.paragraphs:
@@ -151,12 +150,13 @@ class DocxExporter(BaseExporter):
 
         for d in result.days:
             doc.add_page_break()
-            doc.add_heading(f"Day {d.day}", level=2)
+            trip_type_text = "隔夜住宿" if d.is_overnight else "单日往返"
+            doc.add_heading(f"第{d.day}天 ({trip_type_text})", level=2)
             p = doc.add_paragraph()
             p.add_run(
-                f"Points: {d.point_count}    "
-                f"Distance: {d.drive_distance_km}km    "
-                f"Total: {d.total_time_hours}h"
+                f"点位：{d.point_count} 个    "
+                f"距离：{d.drive_distance_km} km    "
+                f"总计：{d.total_time_hours} h"
             )
 
             # Include map image if exists
@@ -169,6 +169,8 @@ class DocxExporter(BaseExporter):
                         run = ip.add_run()
                         run.add_picture(img_path, width=Cm(22))
                         break
+                    else:
+                        print(f"  Map image not found: {img_path}")
 
             doc.add_paragraph()
 

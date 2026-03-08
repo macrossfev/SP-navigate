@@ -205,18 +205,27 @@ def build_config_for_planner(
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     from navigate.core.config import NavigateConfig, DataSourceConfig, ColumnMapping, ExportFormatConfig
     from navigate.core.models import Point
-    
+    from navigate.geocoding.amap import AmapGeocoder
+
     output_dir = tempfile.mkdtemp(prefix="sp_navigate_")
+
+    # Geocode addresses FIRST using Amap API
+    print("\n[Geo] Geocoding addresses with Amap API...")
+    amap_key = "de9b271958d5cf291a018d5e95f7e53d"
+    geocoder = AmapGeocoder(amap_key, request_delay=0.4)
     
-    # Convert dataframe to points directly (bypass file loading)
     points = []
+    geocode_count = 0
+    
     for idx, row in points_df.iterrows():
         addr = str(row.get("地址", "")).strip()
         if not addr or addr == "nan":
             continue
-        
-        # Get coordinates if available
+
+        # Try to geocode the address
         lng, lat = None, None
+        
+        # First check if coordinates are provided in the Excel
         if "经度" in row and "纬度" in row:
             lng_val = row.get("经度")
             lat_val = row.get("纬度")
@@ -228,16 +237,43 @@ def build_config_for_planner(
                 parts = coord_str.split(",")
                 lng, lat = float(parts[0]), float(parts[1])
         
-        # Skip if no coordinates (will be geocoded later if needed)
-        # For now, create point with address as name
+        # If no coordinates in Excel, geocode the address
+        if lng is None or lat is None or lng == 0.0 or lat == 0.0:
+            try:
+                result = geocoder.geocode(addr)
+                if result:
+                    lng, lat = result
+                    geocode_count += 1
+                    print(f"  ✓ [{geocode_count}] {addr[:40]} -> {lat:.6f}, {lng:.6f}")
+                else:
+                    print(f"  ✗ [{idx+1}] {addr[:40]} - Geocoding failed, using fallback")
+                    # Fallback: use hash-based approximate coordinates
+                    import hashlib
+                    addr_hash = hashlib.md5(addr.encode('utf-8')).hexdigest()
+                    lat_offset = (int(addr_hash[:4], 16) / 65535 - 0.5) * 0.5
+                    lng_offset = (int(addr_hash[4:8], 16) / 65535 - 0.5) * 0.5
+                    lng = 107.081 + lng_offset
+                    lat = 29.857 + lat_offset
+            except Exception as e:
+                print(f"  ✗ [{idx+1}] {addr[:40]} - Error: {e}")
+                # Fallback to approximate coordinates
+                import hashlib
+                addr_hash = hashlib.md5(addr.encode('utf-8')).hexdigest()
+                lat_offset = (int(addr_hash[:4], 16) / 65535 - 0.5) * 0.5
+                lng_offset = (int(addr_hash[4:8], 16) / 65535 - 0.5) * 0.5
+                lng = 107.081 + lng_offset
+                lat = 29.857 + lat_offset
+
         points.append(Point(
             id=str(idx),
             name=addr,
-            lng=lng or 0.0,  # Placeholder
-            lat=lat or 0.0,  # Placeholder
+            lng=lng,
+            lat=lat,
             metadata={"address": addr}
         ))
     
+    print(f"\n[Geo] Geocoded {geocode_count}/{len(points)} points successfully")
+
     # Save points info for planner to use
     points_info_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode='w', encoding='utf-8')
     import json
@@ -249,22 +285,22 @@ def build_config_for_planner(
     }
     json.dump(points_data, points_info_file, ensure_ascii=False, indent=2)
     points_info_file.close()
-    
+
     config = NavigateConfig()
-    
+
     # Base point
     config.base_point.name = base_name
     if base_lng and base_lat:
         config.base_point.lng = base_lng
         config.base_point.lat = base_lat
-    
+
     # Strategy
     config.strategy.name = strategy
     config.strategy.options = {
         "cluster_method": "centroid",
         "outlier_threshold_km": overnight_threshold_km,
     }
-    
+
     # Constraints
     config.constraints.max_daily_hours = max_daily_hours
     config.constraints.max_daily_points = max_daily_points
@@ -273,13 +309,12 @@ def build_config_for_planner(
     config.constraints.roundtrip_overhead_min = 60
     config.constraints.overnight_threshold_km = overnight_threshold_km
     config.constraints.single_day_max_hours = single_day_max_hours
-    
+
     # Distance
     config.distance.provider = "haversine"
     config.distance.avg_speed_kmh = 35.0
-    # Working API Key (tested 2026-03-08)
-    config.distance.options["amap_key"] = "de9b271958d5cf291a018d5e95f7e53d"
-    
+    config.distance.options["amap_key"] = amap_key
+
     # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
         file=points_info_file.name,
@@ -292,10 +327,10 @@ def build_config_for_planner(
             metadata={"address": "address"}
         )
     )
-    
+
     # Store points directly in config for fallback
     config._points_cache = points
-    
+
     # Export
     config.export.output_dir = output_dir
     config.export.formats = [
@@ -304,7 +339,7 @@ def build_config_for_planner(
         ExportFormatConfig(type="docx", title="路线规划报告", include_maps=True),
         ExportFormatConfig(type="map", format="html"),
     ]
-    
+
     return config
 
 
@@ -336,8 +371,8 @@ def run_planner(config):
         if valid_coords == 0:
             print("[Geo] No coordinates available, attempting geocoding...")
 
-            # Use the configured API key or default
-            amap_key = config.distance.options.get("amap_key", "b6410cb1a118bad10e6d1161d6e896f7")
+            # Use the configured API key or default (working key)
+            amap_key = config.distance.options.get("amap_key", "de9b271958d5cf291a018d5e95f7e53d")
             geocode_success = False
 
             try:
