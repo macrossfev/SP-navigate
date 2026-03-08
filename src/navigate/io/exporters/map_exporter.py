@@ -77,6 +77,20 @@ class MapExporter(BaseExporter):
             folium.PolyLine(route_pts, weight=5, color="#0066FF",
                             opacity=0.8).add_to(m)
 
+        # Add start point marker (company or hotel)
+        if dp.start_point_name:
+            start_icon = self._create_start_icon(folium, DivIcon, dp.start_point_name, dp.is_overnight)
+            if dp.is_overnight and dp.hotel:
+                start_coord = (dp.hotel.lat, dp.hotel.lng)
+            else:
+                start_coord = coords[0] if coords else (avg_lat, avg_lng)
+            folium.Marker(
+                location=start_coord,
+                icon=start_icon,
+                tooltip=dp.start_point_name,
+            ).add_to(m)
+
+        # Add sampling point markers
         n = len(points)
         for i, (pt, coord) in enumerate(zip(points, coords)):
             num = i + 1
@@ -110,6 +124,26 @@ class MapExporter(BaseExporter):
                              html=label_html),
             ).add_to(m)
 
+        # Add hotel marker for overnight trips
+        if dp.is_overnight and dp.hotel:
+            hotel_icon = self._create_hotel_icon(folium, DivIcon)
+            folium.Marker(
+                location=[dp.hotel.lat, dp.hotel.lng],
+                icon=hotel_icon,
+                tooltip=f"🏨 {dp.hotel.name}",
+                popup=f"<b>住宿点</b><br>{dp.hotel.name}<br>靠近：{dp.hotel.near_point_id or 'N/A'}",
+            ).add_to(m)
+
+        # Add end point marker
+        if dp.end_point_name and dp.end_point_name != dp.start_point_name:
+            end_icon = self._create_end_icon(folium, DivIcon, dp.end_point_name)
+            end_coord = coords[-1] if coords else (avg_lat, avg_lng)
+            folium.Marker(
+                location=end_coord,
+                icon=end_icon,
+                tooltip=dp.end_point_name,
+            ).add_to(m)
+
         m.save(html_path)
 
         # Inject fullscreen CSS
@@ -121,6 +155,44 @@ class MapExporter(BaseExporter):
         html = html.replace("</head>", css + "</head>")
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html)
+
+    @staticmethod
+    def _create_start_icon(folium, DivIcon, name: str, is_overnight: bool):
+        """Create start point marker icon."""
+        color = "#FF6600" if is_overnight else "#00AA00"
+        label = "🏨起点" if is_overnight else "🚗起点"
+        icon_html = (
+            f'<div style="background:{color};color:#fff;border-radius:50%;'
+            f'width:32px;height:32px;display:flex;align-items:center;'
+            f'justify-content:center;font-size:16px;font-weight:bold;'
+            f'border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)">'
+            f'{label}</div>'
+        )
+        return DivIcon(icon_size=(32, 32), icon_anchor=(16, 16), html=icon_html)
+
+    @staticmethod
+    def _create_end_icon(folium, DivIcon, name: str):
+        """Create end point marker icon."""
+        icon_html = (
+            f'<div style="background:#CC0000;color:#fff;border-radius:50%;'
+            f'width:32px;height:32px;display:flex;align-items:center;'
+            f'justify-content:center;font-size:16px;font-weight:bold;'
+            f'border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)">'
+            f'🏁</div>'
+        )
+        return DivIcon(icon_size=(32, 32), icon_anchor=(16, 16), html=icon_html)
+
+    @staticmethod
+    def _create_hotel_icon(folium, DivIcon):
+        """Create hotel marker icon."""
+        icon_html = (
+            f'<div style="background:#9933CC;color:#fff;border-radius:50%;'
+            f'width:36px;height:36px;display:flex;align-items:center;'
+            f'justify-content:center;font-size:20px;font-weight:bold;'
+            f'border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)">'
+            f'🏨</div>'
+        )
+        return DivIcon(icon_size=(36, 36), icon_anchor=(18, 18), html=icon_html)
 
     @staticmethod
     def _calc_zoom(coords, img_w=1200, img_h=800):

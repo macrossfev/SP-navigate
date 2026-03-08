@@ -6,7 +6,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+
+class TripType(str, Enum):
+    """Trip type enumeration."""
+    SINGLE_DAY = "single_day"      # 当日往返
+    OVERNIGHT = "overnight"        # 隔夜住宿
 
 
 @dataclass
@@ -25,6 +32,16 @@ class Point:
 
 
 @dataclass
+class HotelInfo:
+    """Hotel information for overnight trips."""
+    name: str = "住宿点"
+    lng: float = 0.0
+    lat: float = 0.0
+    address: str = ""
+    near_point_id: Optional[str] = None  # 靠近的采样点 ID
+
+
+@dataclass
 class DayPlan:
     """A single day's visiting plan."""
     day: int
@@ -34,10 +51,19 @@ class DayPlan:
     stop_time_min: float = 0.0
     total_time_hours: float = 0.0
     route_polyline: List[Tuple[float, float]] = field(default_factory=list)
+    trip_type: TripType = TripType.SINGLE_DAY  # 行程类型
+    hotel: Optional[HotelInfo] = None  # 住宿信息（仅隔夜行程）
+    start_point_name: str = ""  # 当天起点名称
+    end_point_name: str = ""    # 当天终点名称
 
     @property
     def point_count(self) -> int:
         return len(self.points)
+
+    @property
+    def is_overnight(self) -> bool:
+        """Check if this is an overnight trip."""
+        return self.trip_type == TripType.OVERNIGHT
 
 
 @dataclass
@@ -86,12 +112,17 @@ class PlanResult:
             f"{'=' * 55}",
         ]
         for d in self.days:
+            trip_icon = "🏨" if d.is_overnight else "🚗"
+            start_end = f"{d.start_point_name} → {d.end_point_name}" if d.start_point_name else ""
             lines.append(
                 f" Day {d.day:>2d}: {d.point_count} pts | "
                 f"{d.drive_distance_km:>6.1f}km | "
                 f"drive {d.drive_time_min:>5.0f}min | "
-                f"total {d.total_time_hours:.1f}h"
+                f"total {d.total_time_hours:.1f}h | "
+                f"{trip_icon} {d.trip_type.value}"
             )
+            if start_end:
+                lines.append(f"         {start_end}")
         if self.unassigned:
             lines.append(f" Unassigned: {len(self.unassigned)} points")
         lines.append(f"{'=' * 55}")

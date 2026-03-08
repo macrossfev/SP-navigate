@@ -44,6 +44,11 @@ class ConstraintsConfig:
     break_time_min: int = 0
     buffer_factor: float = 1.0
     max_daily_distance_km: float = 0  # 0 = unlimited
+    
+    # Overnight trip settings
+    overnight_threshold_km: float = 0.0  # Distance threshold for overnight trips
+    overnight_hotel_radius_km: float = 3.0  # Hotel search radius
+    single_day_max_hours: float = 0.0  # Max hours for single-day trips (0 = use max_daily_hours)
 
     @property
     def max_daily_seconds(self) -> float:

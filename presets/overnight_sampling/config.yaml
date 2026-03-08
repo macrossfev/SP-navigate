@@ -1,0 +1,195 @@
+# ============================================================
+# Overnight Sampling Route Planning Configuration
+# 隔夜住宿采样路线规划配置
+# ============================================================
+# 此配置用于混合模式：
+# - 近距离点位：当日往返
+# - 远距离点位：隔夜住宿 (第一天赶路 + 住宿，第二天采样返回)
+# ============================================================
+
+base_point:
+  name: "中共重庆市自来水有限公司委员会"
+  # 可选：手动指定坐标 (如不填将自动地理编码)
+  # lng: 107.081
+  # lat: 29.857
+
+# ============================================================
+# 策略配置
+# ============================================================
+strategy:
+  name: overnight
+  
+  options:
+    # 聚类方法：centroid (质心法) 或 chain (链式法)
+    cluster_method: centroid
+    
+    # 异常点检测阈值 (公里)
+    outlier_threshold_km: 5.0
+    
+    # TSP 2-opt 优化迭代次数
+    tsp_2opt_iterations: 1000
+
+# ============================================================
+# 约束条件
+# ============================================================
+constraints:
+  # 每日最大工作时长 (小时) - 用于隔夜行程
+  max_daily_hours: 10.0
+  
+  # 单日往返最大工作时长 (小时) - 仅用于当日往返行程
+  single_day_max_hours: 6.0
+  
+  # 每日最大采样点数
+  max_daily_points: 5
+  
+  # 每日最小采样点数
+  min_daily_points: 1
+  
+  # 每个采样点停留时间 (分钟)
+  stop_time_per_point_min: 15
+  
+  # 往返额外时间 (分钟) - 包含车辆检查、准备等
+  roundtrip_overhead_min: 60
+  
+  # 休息缓冲时间 (分钟)
+  break_time_min: 30
+  
+  # 缓冲系数 (1.0 = 无缓冲，1.2 = 20% 缓冲)
+  buffer_factor: 1.0
+  
+  # 每日最大行驶距离 (公里，0 = 不限制)
+  max_daily_distance_km: 0
+  
+  # --- 隔夜模式专用配置 ---
+  
+  # 隔夜距离阈值 (公里)
+  # 距离公司超过此值的点位将启用隔夜住宿模式
+  overnight_threshold_km: 80.0
+  
+  # 住宿点搜索半径 (公里)
+  # 在采样点中心此范围内选择住宿点
+  overnight_hotel_radius_km: 3.0
+
+# ============================================================
+# 距离计算配置
+# ============================================================
+distance:
+  # 距离提供者：haversine (直线距离) 或 amap (高德地图驾车路线)
+  provider: haversine
+  
+  # 平均行驶速度 (km/h) - 用于估算时间
+  avg_speed_kmh: 35.0
+  
+  # 使用高德地图 API 时的配置 (取消注释以启用)
+  # provider: amap
+  # amap_key: ${AMAP_API_KEY}  # 或直接在下方填写 API Key
+  # request_delay: 0.5  # API 请求间隔 (秒)
+
+# ============================================================
+# 数据源配置
+# ============================================================
+data:
+  # 采样点数据
+  points:
+    file: 最终地址列表.xlsx
+    format: excel
+    column_mapping:
+      name: "地址"
+      coordinates: "坐标"  # 可选，格式："经度，纬度"
+  
+  # 附加调查数据 (可选)
+  # survey:
+  #   file: 长寿区二次供水现状摸排统计 2024.10.16(3).xls
+  #   format: excel
+  #   skip_rows: 2
+  #   match_key: "小区名称"
+  #   match_mode: fuzzy
+  #   strip_prefix: "重庆市长寿区"
+  #   column_mapping:
+  #     metadata:
+  #       community_name: "小区名称"
+  #       property_company: "物业名称"
+  #       contact_person: "联系人"
+  #       contact_phone: "联系电话"
+  #       households: "服务户数"
+  #       population: "服务人口"
+  
+  # 地址修正表 (可选)
+  # corrections:
+  #   file: 地址修正表.xlsx
+  #   format: excel
+  #   column_mapping:
+  #     metadata:
+  #       original: "原始地址"
+  #       corrected: "-1"
+
+# ============================================================
+# 输出配置
+# ============================================================
+export:
+  # 输出目录
+  output_dir: ./output/overnight_sampling
+  
+  # 输出格式列表
+  formats:
+    # JSON 格式 - 完整数据
+    - type: json
+    
+    # Excel 格式 - 可读性好的表格
+    - type: excel
+      columns:
+        - { header: "天数", source: "day" }
+        - { header: "行程类型", source: "trip_type" }
+        - { header: "站序", source: "index" }
+        - { header: "地址", source: "name" }
+        - { header: "经度", source: "lng" }
+        - { header: "纬度", source: "lat" }
+        - { header: "起点", source: "start_point_name" }
+        - { header: "终点", source: "end_point_name" }
+        # 如有附加数据，可取消注释以下行
+        # - { header: "小区名称", source: "metadata.community_name" }
+        # - { header: "物业名称", source: "metadata.property_company" }
+        # - { header: "联系人", source: "metadata.contact_person" }
+        # - { header: "联系电话", source: "metadata.contact_phone" }
+    
+    # Word 文档 - 格式化报告
+    - type: docx
+      title: "水质采样路线规划报告"
+      include_maps: false  # 如需要地图截图，设为 true (需要 chromium)
+      detail_fields:
+        - { header: "天数", source: "day" }
+        - { header: "行程类型", source: "trip_type" }
+        - { header: "站序", source: "index" }
+        - { header: "地址", source: "name" }
+        - { header: "起点", source: "start_point_name" }
+        - { header: "终点", source: "end_point_name" }
+    
+    # HTML 地图 - 交互式地图
+    - type: map
+      format: html  # 或 png (需要 chromium)
+      image_width: 1200
+      image_height: 800
+
+# ============================================================
+# 使用说明
+# ============================================================
+# 
+# 1. 命令行运行:
+#    python -m navigate plan --config presets/overnight_sampling/config.yaml
+# 
+# 2. Streamlit Web 界面:
+#    streamlit run app.py
+# 
+# 3. 输出文件:
+#    - output/overnight_sampling/plan_result.json  - JSON 结果
+#    - output/overnight_sampling/plan_summary.xlsx - Excel 汇总表
+#    - output/overnight_sampling/report.docx       - Word 报告
+#    - output/overnight_sampling/html/day_X.html   - 每日地图
+# 
+# 4. 结果解读:
+#    - 单日往返 (single_day): 公司 → 点位 → 公司，当天返回
+#    - 隔夜住宿 (overnight): 
+#      * Day 1: 公司 → 点位 (第一天) → 酒店住宿
+#      * Day 2: 酒店 → 点位 (第二天) → 公司
+# 
+# ============================================================
