@@ -1,0 +1,106 @@
+# ============================================================
+# Chongqing Changshou District - Water Quality Sampling
+# Route Planning Configuration
+# ============================================================
+
+base_point:
+  name: "中共重庆市自来水有限公司委员会"
+  # lng: 107.081
+  # lat: 29.857
+
+strategy:
+  name: cluster
+  options:
+    cluster_method: centroid
+    outlier_threshold_km: 5.0
+    tsp_2opt_iterations: 1000
+
+constraints:
+  max_daily_hours: 4.0
+  max_daily_points: 5
+  min_daily_points: 1
+  stop_time_per_point_min: 15
+  roundtrip_overhead_min: 155
+  buffer_factor: 1.0
+  max_daily_distance_km: 0
+
+distance:
+  provider: haversine
+  avg_speed_kmh: 35.0
+  # To use Amap driving API for real distances:
+  # provider: amap
+  # amap_key: ${AMAP_API_KEY}
+  # request_delay: 0.5
+
+data:
+  points:
+    file: /root/projects/navigate/最终地址列表.xlsx
+    format: excel
+    column_mapping:
+      name: "地址"
+      coordinates: "坐标"
+
+  survey:
+    file: /root/projects/navigate/长寿区二次供水现状摸排统计2024.10.16(3).xls
+    format: excel
+    skip_rows: 2
+    match_key: "小区名称"
+    match_mode: fuzzy
+    strip_prefix: "重庆市长寿区"
+    column_mapping:
+      metadata:
+        community_name: "小区名称"
+        property_company: "物业名称"
+        contact_person: "联系人"
+        contact_phone: "联系电话"
+        households: "服务户数"
+        population: "服务人口"
+        equipment: "水箱类型"
+        management: "管理方式"
+
+  corrections:
+    file: /root/projects/navigate/地址修正表.xlsx
+    format: excel
+    column_mapping:
+      metadata:
+        original: "原始地址"
+        corrected: "-1"
+
+export:
+  output_dir: /root/projects/navigate/output/water_sampling
+  formats:
+    - type: json
+
+    - type: excel
+      columns:
+        - { header: "天数", source: "day" }
+        - { header: "站序", source: "index" }
+        - { header: "小区名称", source: "metadata.community_name" }
+        - { header: "地址", source: "name" }
+        - { header: "经度", source: "lng" }
+        - { header: "纬度", source: "lat" }
+        - { header: "物业名称", source: "metadata.property_company" }
+        - { header: "联系人", source: "metadata.contact_person" }
+        - { header: "联系电话", source: "metadata.contact_phone" }
+        - { header: "服务户数", source: "metadata.households" }
+        - { header: "服务人口", source: "metadata.population" }
+        - { header: "管理方式", source: "metadata.management" }
+
+    - type: docx
+      title: "长寿区二次供水水质采样计划"
+      include_maps: true
+      detail_fields:
+        - { header: "站序", source: "index" }
+        - { header: "小区名称", source: "metadata.community_name" }
+        - { header: "地址", source: "name" }
+        - { header: "物业名称", source: "metadata.property_company" }
+        - { header: "联系人", source: "metadata.contact_person" }
+        - { header: "联系电话", source: "metadata.contact_phone" }
+        - { header: "服务户数", source: "metadata.households" }
+        - { header: "服务人口", source: "metadata.population" }
+        - { header: "管理方式", source: "metadata.management" }
+
+    - type: map
+      format: html
+      image_width: 1200
+      image_height: 800

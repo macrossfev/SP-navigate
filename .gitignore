@@ -1,1 +1,9 @@
-__pycache__/\n*.pyc\n.DS_Store
+__pycache__/
+*.pyc
+.DS_Store
+output/
+*.xls
+*.xlsx
+*.docx
+*.json
+*.html
