@@ -288,6 +288,8 @@ def build_config_for_planner(
     cluster_method="centroid",
     outlier_threshold=5.0,
     optimize_groups=True,
+    use_amap_route=False,
+    avg_speed_kmh=35.0,
 ):
     """Build configuration for planner."""
     import sys
@@ -404,9 +406,10 @@ def build_config_for_planner(
     config.constraints.single_day_max_hours = single_day_max_hours
 
     # Distance
-    config.distance.provider = "haversine"
-    config.distance.avg_speed_kmh = 35.0
+    config.distance.provider = "amap" if use_amap_route else "haversine"
+    config.distance.avg_speed_kmh = avg_speed_kmh
     config.distance.options["amap_key"] = amap_key
+    config.distance.options["use_amap_route"] = use_amap_route
 
     # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
@@ -459,16 +462,38 @@ def run_planner(config):
         # Verify coordinates
         valid_coords = sum(1 for p in points if p.lng != 0.0 and p.lat != 0.0)
         print(f"  Points with valid coordinates: {valid_coords}/{len(points)}")
-        
+
         if valid_coords == 0:
             print("  ⚠️ WARNING: No valid coordinates! All points have (0.0, 0.0)")
             print("  This should not happen. Please check the geocoding step above.")
 
         # Build distance matrix
         print(f"\n[Matrix] Building {len(points)}x{len(points)} distance matrix...")
-
-        def dist_func(a, b):
-            return haversine(a.lat, a.lng, b.lat, b.lng)
+        
+        # Check if using Amap route planning
+        use_amap = config.distance.options.get("use_amap_route", False)
+        
+        if use_amap:
+            # Use Amap API for real driving distance
+            print("  Using Amap API for driving distance calculation...")
+            from navigate.distance.amap import AmapProvider
+            
+            amap_key = config.distance.options.get("amap_key", "de9b271958d5cf291a018d5e95f7e53d")
+            avg_speed = config.distance.avg_speed_kmh
+            amap_provider = AmapProvider(api_key=amap_key, request_delay=0.5)
+            
+            def dist_func(a, b):
+                try:
+                    result = amap_provider.get_distance(a, b)
+                    return result.distance_km
+                except Exception as e:
+                    # Fallback to haversine
+                    return haversine(a.lat, a.lng, b.lat, b.lng)
+        else:
+            # Use haversine (straight-line distance)
+            print("  Using haversine formula (straight-line distance)...")
+            def dist_func(a, b):
+                return haversine(a.lat, a.lng, b.lat, b.lng)
 
         dist_matrix = DistanceMatrix.from_points(points, dist_func)
         print("  Done")
@@ -1032,23 +1057,66 @@ def render_step4():
 
         st.divider()
 
-        # Basic constraints (always enabled)
+        # Basic constraints with checkboxes
         st.subheader("基本约束")
-        max_daily_hours = st.slider(
-            "每日最大工时 (小时)",
-            4.0, 12.0, 8.0, 0.5,
-            help="包含驾驶时间和停留时间的总和"
+        
+        enable_max_hours = st.checkbox(
+            "启用每日最大工时",
+            value=True,
+            help="限制每天的工作总时长（包含驾驶和停留）"
         )
-        max_daily_points = st.slider(
-            "每日最大点数",
-            1, 20, 8, 1,
-            help="每天最多访问的采样点数量"
+        if enable_max_hours:
+            max_daily_hours = st.slider(
+                "每日最大工时 (小时)",
+                4.0, 12.0, 8.0, 0.5,
+                key="max_hours"
+            )
+        else:
+            max_daily_hours = 24.0  # No limit
+        
+        enable_max_points = st.checkbox(
+            "启用每日最大点数",
+            value=True,
+            help="限制每天最多访问的采样点数量"
         )
-        stop_time_min = st.slider(
-            "每点停留时间 (分钟)",
-            5, 60, 15, 5,
+        if enable_max_points:
+            max_daily_points = st.slider(
+                "每日最大点数",
+                1, 30, 8, 1,
+                key="max_points"
+            )
+        else:
+            max_daily_points = 100  # No limit
+        
+        enable_stop_time = st.checkbox(
+            "启用每点停留时间",
+            value=True,
             help="在每个采样点的停留时间（包含采样和记录）"
         )
+        if enable_stop_time:
+            stop_time_min = st.slider(
+                "每点停留时间 (分钟)",
+                5, 120, 15, 5,
+                key="stop_time"
+            )
+        else:
+            stop_time_min = 0
+
+        st.divider()
+
+        # Algorithm recommendation
+        st.subheader("📊 算法推荐")
+        st.info("""
+        **💡 推荐配置（适合"近的在一起"的需求）**
+        
+        1. 策略选择：**📍 聚类分组**
+        2. 聚类方法：**🎯 质心法**
+        3. 异常点阈值：**10-20 公里**
+        4. 启用高德路径规划：**✅**
+        
+        这样配置会将距离相近的点位分为一组，
+        每组内的点位按最优路径访问。
+        """)
 
         st.divider()
 
@@ -1064,7 +1132,7 @@ def render_step4():
         if enable_outlier:
             outlier_threshold_km = st.slider(
                 "异常点距离阈值 (公里)",
-                0.0, 50.0, 10.0, 1.0,
+                0.0, 50.0, 15.0, 1.0,
                 key="outlier_threshold",
                 help="如果点位到最近邻点的距离超过此值，标记为异常点。\n建议设置 10-20 公里，避免过多点位被标记为异常"
             )
@@ -1104,6 +1172,26 @@ def render_step4():
         else:
             cluster_method = "centroid"
             optimize_groups = True
+
+        st.divider()
+
+        # Amap route planning option
+        st.subheader("🗺️ 高德路径规划")
+        use_amap_route = st.checkbox(
+            "启用高德 API 路径规划",
+            value=False,
+            help="使用高德地图 API 计算真实的驾驶路线和距离（而非直线距离）\n注意：会增加 API 调用次数，规划时间较长"
+        )
+        if use_amap_route:
+            st.warning("⚠️ 使用高德 API 路径规划会增加规划时间，请耐心等待")
+            avg_speed_kmh = st.slider(
+                "平均驾驶速度 (km/h)",
+                20, 80, 35, 5,
+                key="avg_speed"
+            )
+        else:
+            use_amap_route = False
+            avg_speed_kmh = 35.0
 
         st.divider()
 
@@ -1182,6 +1270,8 @@ def render_step4():
                         cluster_method=cluster_method,
                         outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
                         optimize_groups=optimize_groups,
+                        use_amap_route=use_amap_route,
+                        avg_speed_kmh=avg_speed_kmh,
                     )
 
                     result = run_planner(config)
