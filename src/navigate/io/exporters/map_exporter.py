@@ -209,7 +209,7 @@ class MapExporter(BaseExporter):
         """Take screenshot using headless Chromium."""
         import subprocess
         import os
-        
+
         # Try multiple chromium paths
         chromium_paths = [
             "chromium",
@@ -218,7 +218,7 @@ class MapExporter(BaseExporter):
             "google-chrome",
             "google-chrome-stable",
         ]
-        
+
         chromium_cmd = None
         for cmd in chromium_paths:
             try:
@@ -227,23 +227,29 @@ class MapExporter(BaseExporter):
                 break
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 continue
-        
+
         if not chromium_cmd:
             print(f"  ⚠ No Chromium found, skipping PNG generation")
-            return
-        
+            return False
+
         cmd = [
             chromium_cmd, "--headless", "--no-sandbox",
             "--disable-gpu", "--disable-software-rasterizer",
             f"--screenshot={png_path}", f"--window-size={width},{height}",
             "--virtual-time-budget=5000", f"file://{html_path}",
         ]
-        
+
         try:
-            subprocess.run(cmd, capture_output=True, timeout=60)
-            if os.path.exists(png_path):
-                print(f"  ✓ Screenshot saved: {png_path}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            # Check if file exists and has content
+            if os.path.exists(png_path) and os.path.getsize(png_path) > 0:
+                print(f"  ✓ Screenshot saved: {png_path} ({os.path.getsize(png_path)} bytes)")
+                return True
             else:
                 print(f"  ⚠ Screenshot failed for {html_path}")
+                if result.stderr:
+                    print(f"     Error: {result.stderr[:200]}")
+                return False
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             print(f"  ⚠ Screenshot error: {e}")
+            return False
