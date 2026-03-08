@@ -109,14 +109,15 @@ class MapExporter(BaseExporter):
                              html=icon_html),
             ).add_to(m)
 
-            # Short label
+            # Short label with Chinese font support
             display_name = pt.name
             if len(display_name) > 20:
                 display_name = display_name[-20:]
             label_html = (
                 f'<div style="background:rgba(255,255,255,.92);border:1px solid #666;'
                 f'border-radius:3px;padding:2px 6px;font-size:12px;font-weight:bold;'
-                f'color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)">'
+                f'color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3);'
+                f'font-family:\'Noto Sans CJK SC\',\'Source Han Sans SC\',\'Microsoft YaHei\',sans-serif;">'
                 f'{num}.{display_name}</div>'
             )
             folium.Marker(
@@ -147,13 +148,23 @@ class MapExporter(BaseExporter):
 
         m.save(html_path)
 
-        # Inject fullscreen CSS
+        # Inject fullscreen CSS and Chinese font support
         with open(html_path, "r", encoding="utf-8") as f:
             html = f.read()
-        css = ("<style>html,body{margin:0;padding:0;width:100%;height:100%;"
-               "overflow:hidden}.folium-map{position:absolute;top:0;left:0;"
-               "right:0;bottom:0}</style>")
-        html = html.replace("</head>", css + "</head>")
+        
+        # Add Google Fonts for Chinese characters
+        font_css = (
+            '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">'
+        )
+        
+        css = (
+            "<style>html,body{margin:0;padding:0;width:100%;height:100%;"
+            "overflow:hidden}.folium-map{position:absolute;top:0;left:0;"
+            "right:0;bottom:0}*{font-family:'Noto Sans SC','Noto Sans CJK SC',"
+            "'Source Han Sans SC','Microsoft YaHei',sans-serif !important}</style>"
+        )
+        
+        html = html.replace("</head>", font_css + css + "</head>")
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html)
 
