@@ -290,6 +290,8 @@ def build_config_for_planner(
     optimize_groups=True,
     use_amap_route=False,
     avg_speed_kmh=35.0,
+    dbscan_eps_km=5.0,
+    dbscan_min_samples=3,
 ):
     """Build configuration for planner."""
     import sys
@@ -394,6 +396,8 @@ def build_config_for_planner(
     config.strategy.options = {
         "cluster_method": cluster_method,
         "outlier_threshold_km": outlier_threshold,
+        "dbscan_eps_km": dbscan_eps_km,
+        "dbscan_min_samples": dbscan_min_samples,
     }
 
     # Constraints
@@ -1046,13 +1050,14 @@ def render_step4():
 
         strategy = st.selectbox(
             "规划策略",
-            options=["overnight", "tsp", "cluster"],
+            options=["overnight", "tsp", "cluster", "dbscan"],
             format_func=lambda x: {
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
-                "cluster": "📍 聚类分组 (推荐)"
+                "cluster": "📍 聚类分组 (质心/链式)",
+                "dbscan": "🔬 DBSCAN 密度聚类 (推荐)"
             }.get(x, x),
-            index=2  # Default to cluster
+            index=3  # Default to dbscan
         )
 
         st.divider()
@@ -1132,9 +1137,9 @@ def render_step4():
         if enable_outlier:
             outlier_threshold_km = st.slider(
                 "异常点距离阈值 (公里)",
-                0.0, 50.0, 15.0, 1.0,
+                0.0, 50.0, 20.0, 1.0,  # 默认值从 15 改为 20
                 key="outlier_threshold",
-                help="如果点位到最近邻点的距离超过此值，标记为异常点。\n建议设置 10-20 公里，避免过多点位被标记为异常"
+                help="如果点位到最近邻点的距离超过此值，标记为异常点。\n建议设置 15-25 公里，避免过多点位被标记为异常"
             )
         else:
             outlier_threshold_km = 0.0
@@ -1154,7 +1159,7 @@ def render_step4():
                     "聚类方法",
                     options=["centroid", "chain"],
                     format_func=lambda x: {
-                        "centroid": "🎯 质心法 - 推荐！适合分散点位，每组围绕一个地理中心",
+                        "centroid": "🎯 质心法 - 适合分散点位，每组围绕一个地理中心",
                         "chain": "🔗 链式法 - 适合线性路线，从公司出发形成链条"
                     }.get(x, x),
                     key="cluster_method"
@@ -1169,6 +1174,24 @@ def render_step4():
                 value=True,
                 help="对每个分组内的点位进行 TSP 路径优化，确保组内访问顺序最优"
             )
+        elif strategy == "dbscan":
+            st.subheader("🔬 DBSCAN 配置")
+            st.info("💡 DBSCAN 会自动发现任意形状的簇，适合沿江带状分布")
+            
+            dbscan_eps_km = st.slider(
+                "邻域半径 (公里)",
+                1.0, 20.0, 5.0, 1.0,
+                key="dbscan_eps",
+                help="点位之间的最大距离，小于此距离的点位被认为在同一簇内"
+            )
+            dbscan_min_samples = st.slider(
+                "最小点数",
+                2, 10, 3, 1,
+                key="dbscan_min",
+                help="形成一个簇所需的最小点数"
+            )
+            cluster_method = "dbscan"
+            optimize_groups = True
         else:
             cluster_method = "centroid"
             optimize_groups = True
@@ -1256,6 +1279,10 @@ def render_step4():
         if st.button("▶️ 开始规划", type="primary", use_container_width=True, key="plan_btn"):
             with st.spinner("🔄 正在生成路线规划，请稍候..."):
                 try:
+                    # DBSCAN 参数
+                    dbscan_eps = dbscan_eps_km if strategy == "dbscan" else 5.0
+                    dbscan_min = dbscan_min_samples if strategy == "dbscan" else 3
+                    
                     config = build_config_for_planner(
                         points_df=st.session_state.validated_df,
                         strategy=strategy,
@@ -1272,6 +1299,8 @@ def render_step4():
                         optimize_groups=optimize_groups,
                         use_amap_route=use_amap_route,
                         avg_speed_kmh=avg_speed_kmh,
+                        dbscan_eps_km=dbscan_eps,
+                        dbscan_min_samples=dbscan_min,
                     )
 
                     result = run_planner(config)
