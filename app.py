@@ -287,6 +287,7 @@ def build_config_for_planner(
     single_day_max_hours=6.0,
     cluster_method="centroid",
     outlier_threshold=5.0,
+    optimize_groups=True,
 ):
     """Build configuration for planner."""
     import sys
@@ -1024,41 +1025,57 @@ def render_step4():
             format_func=lambda x: {
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
-                "cluster": "📍 聚类分组"
-            }.get(x, x)
+                "cluster": "📍 聚类分组 (推荐)"
+            }.get(x, x),
+            index=2  # Default to cluster
         )
 
         st.divider()
 
         # Basic constraints (always enabled)
         st.subheader("基本约束")
-        max_daily_hours = st.slider("每日最大工时 (小时)", 4.0, 12.0, 8.0, 0.5)
-        max_daily_points = st.slider("每日最大点数", 1, 20, 5, 1)
-        stop_time_min = st.slider("每点停留时间 (分钟)", 5, 60, 15, 5)
+        max_daily_hours = st.slider(
+            "每日最大工时 (小时)",
+            4.0, 12.0, 8.0, 0.5,
+            help="包含驾驶时间和停留时间的总和"
+        )
+        max_daily_points = st.slider(
+            "每日最大点数",
+            1, 20, 8, 1,
+            help="每天最多访问的采样点数量"
+        )
+        stop_time_min = st.slider(
+            "每点停留时间 (分钟)",
+            5, 60, 15, 5,
+            help="在每个采样点的停留时间（包含采样和记录）"
+        )
 
         st.divider()
 
         # Advanced options with checkboxes
         st.subheader("高级选项")
-        
+
         # Outlier detection
         enable_outlier = st.checkbox(
             "启用异常点检测",
             value=True,
-            help="检测距离其他点过远的点位，单独标记"
+            help="检测距离其他点过远的点位，单独标记为异常点"
         )
         if enable_outlier:
             outlier_threshold_km = st.slider(
                 "异常点距离阈值 (公里)",
-                0.0, 50.0, 5.0, 1.0,
-                key="outlier_threshold"
+                0.0, 50.0, 10.0, 1.0,
+                key="outlier_threshold",
+                help="如果点位到最近邻点的距离超过此值，标记为异常点。\n建议设置 10-20 公里，避免过多点位被标记为异常"
             )
         else:
             outlier_threshold_km = 0.0
 
         # Cluster method (only for cluster strategy)
         if strategy == "cluster":
-            st.subheader("聚类配置")
+            st.subheader("📍 聚类算法配置")
+            st.info("💡 聚类算法会将距离相近的点位分为一组，确保同组点位地理位置相邻")
+            
             enable_cluster_method = st.checkbox(
                 "选择聚类方法",
                 value=True,
@@ -1069,35 +1086,46 @@ def render_step4():
                     "聚类方法",
                     options=["centroid", "chain"],
                     format_func=lambda x: {
-                        "centroid": "质心法 (适合分散点位)",
-                        "chain": "链式法 (适合线性路线)"
+                        "centroid": "🎯 质心法 - 推荐！适合分散点位，每组围绕一个地理中心",
+                        "chain": "🔗 链式法 - 适合线性路线，从公司出发形成链条"
                     }.get(x, x),
                     key="cluster_method"
                 )
             else:
                 cluster_method = "centroid"
+            
+            # Additional cluster settings
+            st.subheader("分组优化")
+            optimize_groups = st.checkbox(
+                "组内路径优化",
+                value=True,
+                help="对每个分组内的点位进行 TSP 路径优化，确保组内访问顺序最优"
+            )
         else:
             cluster_method = "centroid"
+            optimize_groups = True
 
         st.divider()
 
         # Overnight settings
-        st.subheader("隔夜模式配置")
+        st.subheader("🌙 隔夜模式配置")
         enable_overnight = st.checkbox(
             "启用隔夜模式",
             value=(strategy == "overnight"),
-            help="远距离点位启用隔夜住宿模式"
+            help="远距离点位启用隔夜住宿模式，第一天赶路 + 住宿，第二天采样返回"
         )
         if enable_overnight:
             overnight_threshold_km = st.slider(
                 "隔夜距离阈值 (公里)",
                 0.0, 200.0, 80.0, 10.0,
-                key="overnight_threshold"
+                key="overnight_threshold",
+                help="距离公司超过此值的点位启用隔夜住宿模式"
             )
             single_day_max_hours = st.slider(
                 "单日往返最大工时 (小时)",
                 4.0, 10.0, 6.0, 0.5,
-                key="single_day_max"
+                key="single_day_max",
+                help="单日往返行程的最大工作时长"
             )
         else:
             overnight_threshold_km = 0.0
@@ -1153,6 +1181,7 @@ def render_step4():
                         single_day_max_hours=single_day_max_hours if enable_overnight else max_daily_hours,
                         cluster_method=cluster_method,
                         outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
+                        optimize_groups=optimize_groups,
                     )
 
                     result = run_planner(config)
