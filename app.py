@@ -568,15 +568,19 @@ def render_step2():
         return
     
     st.write(f"待验证地址：**{len(df)}** 个")
-    
+
     # Validation settings
     with st.expander("⚙️ 验证设置"):
         city = st.text_input("城市", value=DEFAULT_CITY)
         district = st.text_input("区县", value=DEFAULT_DISTRICT)
         st.session_state.validate_city = city
         st.session_state.validate_district = district
-    
-    if st.button("🔍 开始验证地址", type="primary"):
+
+    # Initialize validation state
+    if "validation_done" not in st.session_state:
+        st.session_state.validation_done = False
+
+    if st.button("🔍 开始验证地址", type="primary", key="start_validation_btn"):
         progress_bar = st.progress(0)
         status_text = st.empty()
 
@@ -592,18 +596,30 @@ def render_step2():
             if st.session_state.validate_district not in r.get("district", ""):
                 wrong_district.append(r)
 
+        # Store in session state
         st.session_state.validation_results = results
         st.session_state.ok_results = ok_results
         st.session_state.failed_addresses = fail_results
         st.session_state.wrong_district = wrong_district
-        
+        st.session_state.validation_done = True
+
         # Create validated DataFrame with coordinates
         validated_df = create_validated_dataframe(df, results)
         st.session_state.validated_df = validated_df
 
+        st.rerun()
+
+    # Display validation results (outside the button block)
+    if st.session_state.validation_done:
+        results = st.session_state.validation_results
+        ok_results = st.session_state.ok_results
+        fail_results = st.session_state.failed_addresses
+        wrong_district = st.session_state.wrong_district
+        validated_df = st.session_state.validated_df
+
         # Summary
         st.success("✅ 验证完成！")
-        
+
         # Show validated data preview
         with st.expander("📋 验证后数据预览"):
             st.dataframe(validated_df, use_container_width=True)
@@ -615,18 +631,18 @@ def render_step2():
             st.metric("❌ 匹配失败", len(fail_results))
         with col3:
             st.metric("⚠️ 区域不符", len(wrong_district))
-        
+
         if fail_results or wrong_district:
             st.markdown('<div class="warning-box">', unsafe_allow_html=True)
             st.write("### ⚠️ 需要处理的地址")
-            
+
             if fail_results:
                 st.write(f"**匹配失败 ({len(fail_results)} 个):**")
                 fail_df = pd.DataFrame({
                     "原始地址": [r["input"] for r in fail_results]
                 })
                 st.dataframe(fail_df, use_container_width=True)
-            
+
             if wrong_district:
                 st.write(f"**区域不符 ({len(wrong_district)} 个):**")
                 wrong_df = pd.DataFrame({
@@ -634,44 +650,50 @@ def render_step2():
                     "实际位置": [f"{r['district']} - {r['formatted']}" for r in wrong_district]
                 })
                 st.dataframe(wrong_df, use_container_width=True)
-            
+
             st.markdown('</div>', unsafe_allow_html=True)
-            
+
             # Export failed addresses
             failed_output = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
             all_failed = fail_results + wrong_district
             export_failed_addresses(all_failed, failed_output.name)
-            
+
             with open(failed_output.name, "rb") as f:
                 st.download_button(
                     label="📥 下载待修正地址表",
                     data=f.read(),
                     file_name="待修正地址.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_failed_btn"
                 )
-            
+
             st.info("💡 请下载待修正地址表，填写'修正后地址'列后，在下一步上传")
 
             # Use session state to track navigation to step 3
             if st.button("我已修正，上传修正表 →", key="go_to_step3_btn"):
                 st.session_state.go_to_step3 = True
                 st.rerun()
-    else:
-        st.success("🎉 所有地址验证通过！可以直接生成规划方案")
-        # Set flag to skip re-validation
-        st.session_state.all_addresses_validated = True
-        # validated_df already set at line 588, don't overwrite it!
-        st.write("✅ 坐标已保存，可以安全生成规划")
-        if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
-            st.session_state.step = 4
-            st.rerun()
+        else:
+            st.success("🎉 所有地址验证通过！可以直接生成规划方案")
+            # Set flag to skip re-validation
+            st.session_state.all_addresses_validated = True
+            # validated_df already set, don't overwrite it!
+            st.write("✅ 坐标已保存，可以安全生成规划")
+            if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
+                st.session_state.step = 4
+                st.rerun()
 
     # Check if user wants to go to step 3
     if st.session_state.get("go_to_step3", False):
         st.session_state.step = 3
         st.session_state.go_to_step3 = False
         st.rerun()
-    
+
+    # Reset validation button
+    if st.button("🔄 重新验证"):
+        st.session_state.validation_done = False
+        st.rerun()
+
     if st.button("← 返回上一步"):
         st.session_state.step = 1
         st.rerun()
