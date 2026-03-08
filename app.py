@@ -277,6 +277,7 @@ def build_config_for_planner(
     # Distance
     config.distance.provider = "haversine"
     config.distance.avg_speed_kmh = 35.0
+    config.distance.options["amap_key"] = "21a63b4dface4f3e756a671c57e86cac"
     
     # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
@@ -299,7 +300,7 @@ def build_config_for_planner(
     config.export.formats = [
         ExportFormatConfig(type="json"),
         ExportFormatConfig(type="excel"),
-        ExportFormatConfig(type="docx", title="路线规划报告"),
+        ExportFormatConfig(type="docx", title="路线规划报告", include_maps=True),
         ExportFormatConfig(type="map", format="html"),
     ]
     
@@ -330,25 +331,58 @@ def run_planner(config):
         valid_coords = sum(1 for p in points if p.lng != 0.0 and p.lat != 0.0)
         print(f"  Points with valid coordinates: {valid_coords}/{len(points)}")
         
-        # If no valid coordinates, use address-based planning with haversine
-        # Generate pseudo-coordinates based on address hash for demonstration
+        # If no valid coordinates, try geocoding first
         if valid_coords == 0:
-            print("[Geo] No coordinates available, generating approximate positions...")
-            # Use Chongqing Changshou district center as base
-            BASE_LAT = 29.857
-            BASE_LNG = 107.081
+            print("[Geo] No coordinates available, attempting geocoding...")
             
-            for i, pt in enumerate(points):
-                # Generate pseudo-coordinates spread around the base
-                # In production, you would use a real geocoding service
-                import hashlib
-                addr_hash = hashlib.md5(pt.name.encode('utf-8')).hexdigest()
-                # Use hash to generate small offsets (within ~50km range)
-                lat_offset = (int(addr_hash[:4], 16) / 65535 - 0.5) * 0.5  # ±0.25 degrees
-                lng_offset = (int(addr_hash[4:8], 16) / 65535 - 0.5) * 0.5
-                pt.lat = BASE_LAT + lat_offset
-                pt.lng = BASE_LNG + lng_offset
-                print(f"  ✓ {pt.name[:30]} -> {pt.lat:.4f}, {pt.lng:.4f}")
+            # Use the configured API key or default
+            amap_key = config.distance.options.get("amap_key", "21a63b4dface4f3e756a671c57e86cac")
+            geocode_success = False
+            
+            try:
+                from navigate.geocoding.amap import AmapGeocoder
+                geocoder = AmapGeocoder(amap_key)
+                
+                # Test geocoding with first point
+                test_addr = points[0].name
+                print(f"  Testing with: {test_addr}")
+                test_result = geocoder.geocode(test_addr)
+                
+                if test_result:
+                    print(f"  ✓ Amap API working! Geocoding all points...")
+                    geocode_success = True
+                    
+                    for pt in points:
+                        result = geocoder.geocode(pt.name)
+                        if result:
+                            pt.lng, pt.lat = result
+                            print(f"    ✓ {pt.name[:40]} -> {pt.lat:.4f}, {pt.lng:.4f}")
+                        else:
+                            print(f"    ✗ {pt.name[:40]} - failed")
+                else:
+                    print(f"  ✗ Amap API test failed for first address")
+                    
+            except Exception as e:
+                print(f"  ✗ Amap geocoding error: {e}")
+            
+            # If geocoding failed, use fallback pseudo-coordinates
+            if not geocode_success:
+                print("\n[Geo] ⚠️ Amap API unavailable, using approximate coordinates...")
+                print("        For accurate results, please check your API key configuration.")
+                
+                # Use Chongqing Changshou district center as base
+                BASE_LAT = 29.857
+                BASE_LNG = 107.081
+                
+                for i, pt in enumerate(points):
+                    # Generate pseudo-coordinates based on address hash
+                    import hashlib
+                    addr_hash = hashlib.md5(pt.name.encode('utf-8')).hexdigest()
+                    lat_offset = (int(addr_hash[:4], 16) / 65535 - 0.5) * 0.5
+                    lng_offset = (int(addr_hash[4:8], 16) / 65535 - 0.5) * 0.5
+                    pt.lat = BASE_LAT + lat_offset
+                    pt.lng = BASE_LNG + lng_offset
+                    print(f"  ~ {pt.name[:40]} -> {pt.lat:.4f}, {pt.lng:.4f}")
         
         # Build distance matrix
         print(f"\n[Matrix] Building {len(points)}x{len(points)} distance matrix...")
@@ -393,11 +427,26 @@ def run_planner(config):
         output_dir = config.export.output_dir
         os.makedirs(output_dir, exist_ok=True)
 
+        # Create a simple distance provider for map polyline (using straight lines)
+        class SimpleDistanceProvider:
+            def get_polyline(self, a, b):
+                # Return straight line coordinates for map display
+                return [(a.lat, a.lng), (b.lat, b.lng)]
+        
+        distance_provider = SimpleDistanceProvider()
+
+        # First generate HTML maps
+        map_exporter = EXPORTERS["map"](config)
+        map_exporter.export(result, output_dir, format_config=None, distance_provider=distance_provider)
+        
+        # Then generate other formats
         for fmt in config.export.formats:
+            if fmt.type == "map":
+                continue  # Already handled
             exporter_cls = EXPORTERS.get(fmt.type)
             if exporter_cls:
                 exporter = exporter_cls(config)
-                exporter.export(result, output_dir, format_config=fmt)
+                exporter.export(result, output_dir, format_config=fmt, distance_provider=distance_provider)
 
     return {
         "result": result,
