@@ -231,6 +231,8 @@ def build_config_for_planner(
     stop_time_min=15,
     overnight_threshold_km=80.0,
     single_day_max_hours=6.0,
+    cluster_method="centroid",
+    outlier_threshold=5.0,
 ):
     """Build configuration for planner."""
     import sys
@@ -333,8 +335,8 @@ def build_config_for_planner(
     # Strategy
     config.strategy.name = strategy
     config.strategy.options = {
-        "cluster_method": "centroid",
-        "outlier_threshold_km": overnight_threshold_km,
+        "cluster_method": cluster_method,
+        "outlier_threshold_km": outlier_threshold,
     }
 
     # Constraints
@@ -718,6 +720,173 @@ def render_step3():
         st.rerun()
 
 
+# ============== Pre-planning Functions ==============
+
+def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="centroid", outlier_threshold=5.0):
+    """Generate pre-planning preview with clustering and visualization."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    from navigate.core.models import Point
+    from navigate.distance.haversine import haversine
+    from navigate.strategies.cluster import ClusterStrategy
+    from navigate.core.config import NavigateConfig, ConstraintsConfig, StrategyConfig
+    
+    # Convert DataFrame to Points
+    points = []
+    for idx, row in points_df.iterrows():
+        addr = str(row.get("地址", "")).strip()
+        if not addr or addr == "nan":
+            continue
+        
+        # Try to get coordinates
+        lng, lat = None, None
+        if "经度" in row and "纬度" in row:
+            lng_val = row.get("经度")
+            lat_val = row.get("纬度")
+            if pd.notna(lng_val) and pd.notna(lat_val):
+                lng, lat = float(lng_val), float(lat_val)
+        
+        if lng is not None and lat is not None:
+            points.append(Point(id=str(idx), name=addr, lng=lng, lat=lat, metadata={"address": addr}))
+    
+    if len(points) < 2:
+        raise ValueError("至少需要 2 个有效坐标点位")
+    
+    # Build distance matrix
+    n = len(points)
+    dist_matrix_data = [[0.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = haversine(points[i].lat, points[i].lng, points[j].lat, points[j].lng)
+            dist_matrix_data[i][j] = d
+            dist_matrix_data[j][i] = d
+    
+    # Create config
+    config = NavigateConfig()
+    config.constraints = ConstraintsConfig(max_daily_points=max_daily_points)
+    config.strategy = StrategyConfig(name=strategy, options={"cluster_method": cluster_method, "outlier_threshold_km": outlier_threshold})
+    
+    # Run clustering
+    cluster_strategy = ClusterStrategy(config)
+    
+    # Create simple distance matrix object
+    class SimpleDistMatrix:
+        def __init__(self, data):
+            self._data = data
+        def to_list(self):
+            return self._data
+        def get(self, i, j):
+            return self._data[i][j]
+    
+    dist_matrix = SimpleDistMatrix(dist_matrix_data)
+    result = cluster_strategy.plan(points, dist_matrix)
+    
+    return {
+        "points": points,
+        "result": result,
+        "clusters": [[points[i].name for i in range(len(points)) if any(i in day.points for day in result.days[:j+1])] for j, day in enumerate(result.days)],
+    }
+
+
+def display_pre_plan_results(pre_result):
+    """Display pre-planning results with summary and map."""
+    st.markdown("---")
+    st.subheader("📊 预规划结果")
+    
+    result = pre_result.get("result")
+    points = pre_result.get("points", [])
+    
+    # Summary
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("总点位", len(points))
+    with col2:
+        st.metric("分组数", result.total_days if result else 0)
+    with col3:
+        if result and result.unassigned:
+            st.metric("异常点", len(result.unassigned))
+        else:
+            st.metric("异常点", 0)
+    
+    # Group summary
+    st.markdown("### 分组汇总")
+    
+    if result:
+        for i, day in enumerate(result.days, 1):
+            with st.expander(f"**第 {i} 组** - {day.point_count} 个点位 | 距离 {day.drive_distance_km:.1f} km"):
+                point_names = [p.name for p in day.points]
+                for j, name in enumerate(point_names, 1):
+                    st.write(f"{j}. {name}")
+        
+        # Outliers
+        if result.unassigned:
+            st.warning(f"**{len(result.unassigned)} 个异常点** (距离其他点过远)")
+            for pt, nn_dist in result.unassigned:
+                st.write(f"- {pt.name} (最近邻距离：{nn_dist:.1f} km)")
+    
+    # Visualization
+    st.markdown("### 区域分布图")
+    
+    if points:
+        # Create map with all points colored by group
+        import folium
+        from folium import DivIcon
+        
+        avg_lat = sum(p.lat for p in points) / len(points)
+        avg_lng = sum(p.lng for p in points) / len(points)
+        
+        m = folium.Map(location=[avg_lat, avg_lng], zoom_start=12, tiles="CartoDB positron")
+        
+        # Color for each group
+        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE"]
+        
+        if result:
+            for group_idx, day in enumerate(result.days):
+                color = colors[group_idx % len(colors)]
+                group_coords = [(p.lat, p.lng) for p in day.points]
+                
+                # Draw polygon around group
+                if len(group_coords) >= 3:
+                    folium.Polygon(
+                        locations=group_coords,
+                        color=color,
+                        fill=True,
+                        fill_color=color,
+                        fill_opacity=0.2,
+                        weight=2,
+                        opacity=0.5
+                    ).add_to(m)
+                
+                # Add point markers
+                for idx, p in enumerate(day.points):
+                    folium.Marker(
+                        location=[p.lat, p.lng],
+                        popup=f"{p.name}",
+                        icon=DivIcon(
+                            icon_size=(20, 20),
+                            icon_anchor=(10, 10),
+                            html=f'<div style="background:{color};color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;">{idx+1}</div>'
+                        )
+                    ).add_to(m)
+        
+        # Add outliers in gray
+        if result and result.unassigned:
+            for pt, _ in result.unassigned:
+                folium.Marker(
+                    location=[pt.lat, pt.lng],
+                    popup=f"⚠️ {pt.name} (异常点)",
+                    icon=DivIcon(
+                        icon_size=(20, 20),
+                        icon_anchor=(10, 10),
+                        html='<div style="background:#808080;color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">!</div>'
+                    )
+                ).add_to(m)
+        
+        st.map(m)
+
+
+# ============== Step 4 ==============
+
 def render_step4():
     """Step 4: Generate plan."""
     st.markdown("""
@@ -726,18 +895,22 @@ def render_step4():
         <p>配置参数并生成最优路线方案</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     if "validated_df" not in st.session_state:
         st.error("请先完成地址验证")
         if st.button("← 返回验证"):
             st.session_state.step = 2
             st.rerun()
         return
-    
+
+    # Initialize session state for pre-planning
+    if "pre_plan_result" not in st.session_state:
+        st.session_state.pre_plan_result = None
+
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ 规划配置")
-        
+
         strategy = st.selectbox(
             "规划策略",
             options=["overnight", "tsp", "cluster"],
@@ -747,21 +920,82 @@ def render_step4():
                 "cluster": "📍 聚类分组"
             }.get(x, x)
         )
-        
+
         st.divider()
-        
+
+        # Basic constraints (always enabled)
+        st.subheader("基本约束")
         max_daily_hours = st.slider("每日最大工时 (小时)", 4.0, 12.0, 8.0, 0.5)
         max_daily_points = st.slider("每日最大点数", 1, 20, 5, 1)
         stop_time_min = st.slider("每点停留时间 (分钟)", 5, 60, 15, 5)
-        
+
         st.divider()
+
+        # Advanced options with checkboxes
+        st.subheader("高级选项")
         
-        overnight_threshold_km = st.slider(
-            "隔夜距离阈值 (公里)",
-            0.0, 200.0, 80.0, 10.0
+        # Outlier detection
+        enable_outlier = st.checkbox(
+            "启用异常点检测",
+            value=True,
+            help="检测距离其他点过远的点位，单独标记"
         )
-        single_day_max_hours = st.slider("单日往返最大工时 (小时)", 4.0, 10.0, 6.0, 0.5)
-    
+        if enable_outlier:
+            outlier_threshold_km = st.slider(
+                "异常点距离阈值 (公里)",
+                0.0, 50.0, 5.0, 1.0,
+                key="outlier_threshold"
+            )
+        else:
+            outlier_threshold_km = 0.0
+
+        # Cluster method (only for cluster strategy)
+        if strategy == "cluster":
+            st.subheader("聚类配置")
+            enable_cluster_method = st.checkbox(
+                "选择聚类方法",
+                value=True,
+                help="选择聚类算法"
+            )
+            if enable_cluster_method:
+                cluster_method = st.radio(
+                    "聚类方法",
+                    options=["centroid", "chain"],
+                    format_func=lambda x: {
+                        "centroid": "质心法 (适合分散点位)",
+                        "chain": "链式法 (适合线性路线)"
+                    }.get(x, x),
+                    key="cluster_method"
+                )
+            else:
+                cluster_method = "centroid"
+        else:
+            cluster_method = "centroid"
+
+        st.divider()
+
+        # Overnight settings
+        st.subheader("隔夜模式配置")
+        enable_overnight = st.checkbox(
+            "启用隔夜模式",
+            value=(strategy == "overnight"),
+            help="远距离点位启用隔夜住宿模式"
+        )
+        if enable_overnight:
+            overnight_threshold_km = st.slider(
+                "隔夜距离阈值 (公里)",
+                0.0, 200.0, 80.0, 10.0,
+                key="overnight_threshold"
+            )
+            single_day_max_hours = st.slider(
+                "单日往返最大工时 (小时)",
+                4.0, 10.0, 6.0, 0.5,
+                key="single_day_max"
+            )
+        else:
+            overnight_threshold_km = 0.0
+            single_day_max_hours = max_daily_hours
+
     # Base point config
     st.subheader("起点配置")
     col1, col2 = st.columns(2)
@@ -774,37 +1008,64 @@ def render_step4():
         with st.expander("📍 手动输入坐标 (可选)"):
             base_lng = st.number_input("经度", value=107.081, format="%.6f")
             base_lat = st.number_input("纬度", value=29.857, format="%.6f")
-    
-    if st.button("▶️ 开始规划", type="primary"):
-        with st.spinner("🔄 正在生成路线规划，请稍候..."):
-            try:
-                config = build_config_for_planner(
-                    points_df=st.session_state.validated_df,
-                    strategy=strategy,
-                    base_name=base_name,
-                    base_lng=base_lng if base_lng else None,
-                    base_lat=base_lat if base_lat else None,
-                    max_daily_hours=max_daily_hours,
-                    max_daily_points=max_daily_points,
-                    stop_time_min=stop_time_min,
-                    overnight_threshold_km=overnight_threshold_km,
-                    single_day_max_hours=single_day_max_hours,
-                )
-                
-                result = run_planner(config)
-                
-                st.session_state.result = result
-                st.session_state.output_dir = config.export.output_dir
-                
-                st.success("✅ 路线规划完成！")
-                st.session_state.step = 5
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"❌ 规划失败：{str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
-    
+
+    # Pre-planning and planning buttons
+    st.divider()
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("🔍 预规划", use_container_width=True, key="preplan_btn"):
+            with st.spinner("🔄 正在生成预规划，请稍候..."):
+                try:
+                    # Run clustering for preview
+                    pre_result = generate_pre_plan(
+                        points_df=st.session_state.validated_df,
+                        strategy=strategy,
+                        max_daily_points=max_daily_points,
+                        cluster_method=cluster_method,
+                        outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
+                    )
+                    st.session_state.pre_plan_result = pre_result
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ 预规划失败：{str(e)}")
+
+    with col2:
+        if st.button("▶️ 开始规划", type="primary", use_container_width=True, key="plan_btn"):
+            with st.spinner("🔄 正在生成路线规划，请稍候..."):
+                try:
+                    config = build_config_for_planner(
+                        points_df=st.session_state.validated_df,
+                        strategy=strategy,
+                        base_name=base_name,
+                        base_lng=base_lng if base_lng else None,
+                        base_lat=base_lat if base_lat else None,
+                        max_daily_hours=max_daily_hours,
+                        max_daily_points=max_daily_points,
+                        stop_time_min=stop_time_min,
+                        overnight_threshold_km=overnight_threshold_km if enable_overnight else 0.0,
+                        single_day_max_hours=single_day_max_hours if enable_overnight else max_daily_hours,
+                        cluster_method=cluster_method,
+                        outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
+                    )
+
+                    result = run_planner(config)
+
+                    st.session_state.result = result
+                    st.session_state.output_dir = config.export.output_dir
+
+                    st.success("✅ 路线规划完成！")
+                    st.session_state.step = 5
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ 规划失败：{str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
+    # Display pre-planning results
+    if st.session_state.pre_plan_result:
+        display_pre_plan_results(st.session_state.pre_plan_result)
+
     if st.button("← 返回上一步"):
         st.session_state.step = 2
         st.rerun()
