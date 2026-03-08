@@ -645,7 +645,8 @@ def render_step2():
             st.success("🎉 所有地址验证通过！可以直接生成规划方案")
             # Set flag to skip re-validation
             st.session_state.all_addresses_validated = True
-            st.session_state.validated_df = df.copy()
+            # validated_df already set at line 588, don't overwrite it!
+            st.write("✅ 坐标已保存，可以安全生成规划")
             if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
                 st.session_state.step = 4
                 st.rerun()
