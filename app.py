@@ -277,7 +277,9 @@ def build_config_for_planner(
     # Distance
     config.distance.provider = "haversine"
     config.distance.avg_speed_kmh = 35.0
-    config.distance.options["amap_key"] = "21a63b4dface4f3e756a671c57e86cac"
+    # Note: API Key b6410cb1a118bad10e6d1161d6e896f7 returns SERVICE_NOT_AVAILABLE
+    # May need to check quota or platform configuration
+    config.distance.options["amap_key"] = "b6410cb1a118bad10e6d1161d6e896f7"
     
     # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
@@ -361,7 +363,11 @@ def run_planner(config):
                             print(f"    ✗ {pt.name[:40]} - failed")
                 else:
                     print(f"  ✗ Amap API test failed for first address")
-                    print(f"     Note: API Key may not be configured for Web API platform")
+                    print(f"     Error: SERVICE_NOT_AVAILABLE or USERKEY_PLAT_NOMATCH")
+                    print(f"     Possible causes:")
+                    print(f"       1. API Key quota exhausted")
+                    print(f"       2. API Key not configured for Web API platform")
+                    print(f"       3. Service not enabled in Amap console")
                     
             except Exception as e:
                 print(f"  ✗ Amap geocoding error: {e}")
