@@ -651,19 +651,26 @@ def render_step2():
                 )
             
             st.info("💡 请下载待修正地址表，填写'修正后地址'列后，在下一步上传")
-            
-            if st.button("我已修正，上传修正表 →"):
-                st.session_state.step = 3
+
+            # Use session state to track navigation to step 3
+            if st.button("我已修正，上传修正表 →", key="go_to_step3_btn"):
+                st.session_state.go_to_step3 = True
                 st.rerun()
-        else:
-            st.success("🎉 所有地址验证通过！可以直接生成规划方案")
-            # Set flag to skip re-validation
-            st.session_state.all_addresses_validated = True
-            # validated_df already set at line 588, don't overwrite it!
-            st.write("✅ 坐标已保存，可以安全生成规划")
-            if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
-                st.session_state.step = 4
-                st.rerun()
+    else:
+        st.success("🎉 所有地址验证通过！可以直接生成规划方案")
+        # Set flag to skip re-validation
+        st.session_state.all_addresses_validated = True
+        # validated_df already set at line 588, don't overwrite it!
+        st.write("✅ 坐标已保存，可以安全生成规划")
+        if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
+            st.session_state.step = 4
+            st.rerun()
+
+    # Check if user wants to go to step 3
+    if st.session_state.get("go_to_step3", False):
+        st.session_state.step = 3
+        st.session_state.go_to_step3 = False
+        st.rerun()
     
     if st.button("← 返回上一步"):
         st.session_state.step = 1
