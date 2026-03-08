@@ -859,22 +859,23 @@ def render_step3():
 
 # ============== Pre-planning Functions ==============
 
-def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="centroid", outlier_threshold=5.0):
+def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="centroid", outlier_threshold=5.0,
+                      dbscan_eps_km=5.0, dbscan_min_samples=3,
+                      area_threshold_km2=100.0, area_min_points=3, area_max_points=50):
     """Generate pre-planning preview with clustering and visualization."""
     import sys
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     from navigate.core.models import Point
     from navigate.distance.haversine import haversine
-    from navigate.strategies.cluster import ClusterStrategy
     from navigate.core.config import NavigateConfig, ConstraintsConfig, StrategyConfig
-    
+
     # Convert DataFrame to Points
     points = []
     for idx, row in points_df.iterrows():
         addr = str(row.get("地址", "")).strip()
         if not addr or addr == "nan":
             continue
-        
+
         # Try to get coordinates
         lng, lat = None, None
         if "经度" in row and "纬度" in row:
@@ -882,13 +883,13 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
             lat_val = row.get("纬度")
             if pd.notna(lng_val) and pd.notna(lat_val):
                 lng, lat = float(lng_val), float(lat_val)
-        
+
         if lng is not None and lat is not None:
             points.append(Point(id=str(idx), name=addr, lng=lng, lat=lat, metadata={"address": addr}))
-    
+
     if len(points) < 2:
         raise ValueError("至少需要 2 个有效坐标点位")
-    
+
     # Build distance matrix
     n = len(points)
     dist_matrix_data = [[0.0] * n for _ in range(n)]
@@ -897,15 +898,32 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
             d = haversine(points[i].lat, points[i].lng, points[j].lat, points[j].lng)
             dist_matrix_data[i][j] = d
             dist_matrix_data[j][i] = d
-    
+
     # Create config
     config = NavigateConfig()
     config.constraints = ConstraintsConfig(max_daily_points=max_daily_points)
-    config.strategy = StrategyConfig(name=strategy, options={"cluster_method": cluster_method, "outlier_threshold_km": outlier_threshold})
-    
-    # Run clustering
-    cluster_strategy = ClusterStrategy(config)
-    
+    config.strategy = StrategyConfig(name=strategy, options={
+        "cluster_method": cluster_method,
+        "outlier_threshold_km": outlier_threshold,
+        "dbscan_eps_km": dbscan_eps_km,
+        "dbscan_min_samples": dbscan_min_samples,
+        "area_expansion_threshold_km2": area_threshold_km2,
+        "min_points_per_cluster": area_min_points,
+        "max_points_per_cluster": area_max_points,
+    })
+
+    # Run strategy based on selection
+    if strategy == "dbscan":
+        from navigate.strategies.dbscan import DbscanStrategy
+        strategy_instance = DbscanStrategy(config)
+    elif strategy == "area_expansion":
+        from navigate.strategies.area_expansion import AreaExpansionStrategy
+        strategy_instance = AreaExpansionStrategy(config)
+    else:
+        # Default to cluster
+        from navigate.strategies.cluster import ClusterStrategy
+        strategy_instance = ClusterStrategy(config)
+
     # Create simple distance matrix object
     class SimpleDistMatrix:
         def __init__(self, data):
@@ -914,14 +932,14 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
             return self._data
         def get(self, i, j):
             return self._data[i][j]
-    
+
     dist_matrix = SimpleDistMatrix(dist_matrix_data)
-    result = cluster_strategy.plan(points, dist_matrix)
-    
+    result = strategy_instance.plan(points, dist_matrix)
+
     return {
         "points": points,
         "result": result,
-        "clusters": [[points[i].name for i in range(len(points)) if any(i in day.points for day in result.days[:j+1])] for j, day in enumerate(result.days)],
+        "strategy": strategy,
     }
 
 
@@ -1339,13 +1357,18 @@ def render_step4():
         if st.button("🔍 预规划", use_container_width=True, key="preplan_btn"):
             with st.spinner("🔄 正在生成预规划，请稍候..."):
                 try:
-                    # Run clustering for preview
+                    # 预规划使用与正式规划相同的参数
                     pre_result = generate_pre_plan(
                         points_df=st.session_state.validated_df,
                         strategy=strategy,
                         max_daily_points=max_daily_points,
                         cluster_method=cluster_method,
                         outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
+                        dbscan_eps_km=dbscan_eps_km if strategy == "dbscan" else 5.0,
+                        dbscan_min_samples=dbscan_min_samples if strategy == "dbscan" else 3,
+                        area_threshold_km2=area_threshold_km2 if strategy == "area_expansion" else 100.0,
+                        area_min_points=area_min_points if strategy == "area_expansion" else 3,
+                        area_max_points=area_max_points if strategy == "area_expansion" else 50,
                     )
                     st.session_state.pre_plan_result = pre_result
                     st.rerun()
