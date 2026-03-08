@@ -197,7 +197,7 @@ def export_failed_addresses(failed, output_path):
 
 
 def merge_corrected_data(original_df, corrected_df):
-    """Merge original data with corrected addresses."""
+    """Merge original data with corrected addresses, preserving coordinates."""
     # Create mapping from corrected file
     correction_map = {}
     if "原始地址" in corrected_df.columns and "修正后地址" in corrected_df.columns:
@@ -206,7 +206,7 @@ def merge_corrected_data(original_df, corrected_df):
             corrected = str(row["修正后地址"]).strip()
             if corrected and corrected != "nan":
                 correction_map[original] = corrected
-    
+
     # Apply corrections
     corrected_addresses = []
     for addr in original_df["地址"]:
@@ -214,9 +214,52 @@ def merge_corrected_data(original_df, corrected_df):
             corrected_addresses.append(correction_map[addr])
         else:
             corrected_addresses.append(addr)
-    
+
+    # Copy original DataFrame with all columns (including coordinates)
     result_df = original_df.copy()
     result_df["地址"] = corrected_addresses
+    
+    # Re-geocode the corrected addresses to get coordinates
+    # This is necessary because the correction map doesn't include coordinates
+    print(f"\n[Geo] Re-geocoding {len(corrected_addresses)} corrected addresses...")
+    
+    from navigate.geocoding.amap import AmapGeocoder
+    amap_key = "de9b271958d5cf291a018d5e95f7e53d"
+    geocoder = AmapGeocoder(amap_key, request_delay=0.4)
+    
+    # Initialize coordinate columns if not exist
+    if "经度" not in result_df.columns:
+        result_df["经度"] = None
+    if "纬度" not in result_df.columns:
+        result_df["纬度"] = None
+    if "地理编码状态" not in result_df.columns:
+        result_df["地理编码状态"] = "未验证"
+    
+    # Re-geocode corrected addresses
+    geocode_count = 0
+    for idx, addr in enumerate(corrected_addresses):
+        # Check if address was corrected
+        original_addr = original_df["地址"].iloc[idx]
+        if addr != original_addr:
+            # This address was corrected, need to geocode
+            try:
+                result = geocoder.geocode(addr)
+                if result:
+                    result_df.at[idx, "经度"] = float(result[0])
+                    result_df.at[idx, "纬度"] = float(result[1])
+                    result_df.at[idx, "地理编码状态"] = "成功"
+                    geocode_count += 1
+                else:
+                    result_df.at[idx, "地理编码状态"] = "失败"
+            except Exception as e:
+                print(f"  Geocode failed for {addr}: {e}")
+                result_df.at[idx, "地理编码状态"] = "失败"
+        else:
+            # Address not corrected, keep original coordinates
+            pass
+    
+    print(f"  Re-geocoded {geocode_count} corrected addresses")
+    
     return result_df, len(correction_map)
 
 
