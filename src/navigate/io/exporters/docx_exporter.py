@@ -161,16 +161,25 @@ class DocxExporter(BaseExporter):
 
             # Include map image if exists
             if fmt_config and fmt_config.include_maps:
+                img_found = False
                 for pattern in [f"day_{d.day}.png", f"Day{d.day}.png"]:
                     img_path = os.path.join(img_dir, pattern)
-                    if os.path.exists(img_path):
+                    if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
                         ip = doc.add_paragraph()
                         ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         run = ip.add_run()
                         run.add_picture(img_path, width=Cm(22))
+                        img_found = True
                         break
-                    else:
-                        print(f"  Map image not found: {img_path}")
+                
+                if not img_found:
+                    # Add note if image not available
+                    ip = doc.add_paragraph()
+                    ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = ip.add_run()
+                    run.add_text(f"（地图图片：请查看 {img_dir}/day_{d.day}.png）")
+                    run.font.size = Pt(9)
+                    run.font.color.rgb = RGBColor(128, 128, 128)
 
             doc.add_paragraph()
 
