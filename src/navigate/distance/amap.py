@@ -60,15 +60,27 @@ class AmapProvider(DistanceProvider):
         return route.get("polyline", []) if route else []
 
     def geocode(self, address: str, city: str = "") -> Optional[Tuple[float, float]]:
-        """Geocode an address to (lng, lat) coordinates."""
+        """Geocode an address to (lng, lat) coordinates using curl."""
         self._throttle()
-        params = {"key": self._key, "address": address, "output": "json"}
+        
+        import subprocess
+        import json
+        
+        # Use curl directly to avoid Python requests issues
+        url = f"{self.API_BASE}/geocoding/geo"
+        cmd = [
+            "curl", "-s", "-G", url,
+            "--data-urlencode", f"address={address}",
+            "--data-urlencode", f"key={self._key}",
+            "--data-urlencode", "output=json"
+        ]
         if city:
-            params["city"] = city
+            cmd.extend(["--data-urlencode", f"city={city}"])
+        
         try:
-            resp = requests.get(f"{self.API_BASE}/geocoding/geo",
-                                params=params, timeout=10)
-            data = resp.json()
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            data = json.loads(result.stdout)
+            
             if data.get("status") == "1" and data.get("geocodes"):
                 loc = data["geocodes"][0]["location"]
                 lng, lat = loc.split(",")

@@ -103,17 +103,26 @@ def create_template():
 
 
 def geocode_address(address, city=DEFAULT_CITY):
-    """Geocode single address using Amap API."""
+    """Geocode single address using Amap API via curl."""
+    import subprocess
+    import json
+    
+    AMAP_KEY_LOCAL = "de9b271958d5cf291a018d5e95f7e53d"
     url = "https://restapi.amap.com/v3/geocode/geo"
-    params = {
-        "address": address,
-        "city": city,
-        "key": AMAP_KEY
-    }
+    
+    cmd = [
+        "curl", "-s", "-G", url,
+        "--data-urlencode", f"address={address}",
+        "--data-urlencode", f"key={AMAP_KEY_LOCAL}",
+        "--data-urlencode", "output=json"
+    ]
+    if city:
+        cmd.extend(["--data-urlencode", f"city={city}"])
+    
     try:
-        resp = requests.get(url, params=params, timeout=10)
-        data = resp.json()
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        data = json.loads(result.stdout)
+
         if data.get("status") == "1" and data.get("geocodes"):
             geo = data["geocodes"][0]
             return {
@@ -126,7 +135,7 @@ def geocode_address(address, city=DEFAULT_CITY):
             }
     except Exception as e:
         pass
-    
+
     return {
         "status": "FAIL",
         "input": address,
