@@ -336,31 +336,33 @@ def run_planner(config):
         # If no valid coordinates, try geocoding first
         if valid_coords == 0:
             print("[Geo] No coordinates available, attempting geocoding...")
-            
+
             # Use the configured API key or default
-            amap_key = config.distance.options.get("amap_key", "21a63b4dface4f3e756a671c57e86cac")
+            amap_key = config.distance.options.get("amap_key", "b6410cb1a118bad10e6d1161d6e896f7")
             geocode_success = False
-            
+
             try:
                 from navigate.geocoding.amap import AmapGeocoder
-                geocoder = AmapGeocoder(amap_key)
-                
+                # Create geocoder with request delay to respect concurrency limit (3 QPS)
+                geocoder = AmapGeocoder(amap_key, request_delay=0.4)  # 400ms delay = ~2.5 req/s
+
                 # Test geocoding with first point
                 test_addr = points[0].name
                 print(f"  Testing with: {test_addr}")
                 test_result = geocoder.geocode(test_addr)
-                
+
                 if test_result:
                     print(f"  ✓ Amap API working! Geocoding all points...")
+                    print(f"     Note: Using 400ms delay between requests (QPS limit: 3)")
                     geocode_success = True
-                    
-                    for pt in points:
+
+                    for i, pt in enumerate(points):
                         result = geocoder.geocode(pt.name)
                         if result:
                             pt.lng, pt.lat = result
-                            print(f"    ✓ {pt.name[:40]} -> {pt.lat:.4f}, {pt.lng:.4f}")
+                            print(f"    [{i+1}/{len(points)}] ✓ {pt.name[:35]} -> {pt.lat:.4f}, {pt.lng:.4f}")
                         else:
-                            print(f"    ✗ {pt.name[:40]} - failed")
+                            print(f"    [{i+1}/{len(points)}] ✗ {pt.name[:35]} - failed")
                 else:
                     print(f"  ✗ Amap API test failed for first address")
                     print(f"     Error: SERVICE_NOT_AVAILABLE or USERKEY_PLAT_NOMATCH")
@@ -368,20 +370,20 @@ def run_planner(config):
                     print(f"       1. API Key quota exhausted")
                     print(f"       2. API Key not configured for Web API platform")
                     print(f"       3. Service not enabled in Amap console")
-                    
+
             except Exception as e:
                 print(f"  ✗ Amap geocoding error: {e}")
-            
+
             # If geocoding failed, use fallback pseudo-coordinates
             if not geocode_success:
                 print("\n[Geo] ⚠️ Amap API unavailable, using approximate coordinates...")
                 print("        For accurate results, please check your API key configuration.")
                 print("        Error: USERKEY_PLAT_NOMATCH - API Key not configured for Web API")
-                
+
                 # Use Chongqing Changshou district center as base
                 BASE_LAT = 29.857
                 BASE_LNG = 107.081
-                
+
                 for i, pt in enumerate(points):
                     # Generate pseudo-coordinates based on address hash
                     import hashlib
@@ -390,7 +392,7 @@ def run_planner(config):
                     lng_offset = (int(addr_hash[4:8], 16) / 65535 - 0.5) * 0.5
                     pt.lat = BASE_LAT + lat_offset
                     pt.lng = BASE_LNG + lng_offset
-                    print(f"  ~ {pt.name[:40]} -> {pt.lat:.4f}, {pt.lng:.4f}")
+                    print(f"  ~ {pt.name[:35]} -> {pt.lat:.4f}, {pt.lng:.4f}")
         
         # Build distance matrix
         print(f"\n[Matrix] Building {len(points)}x{len(points)} distance matrix...")
