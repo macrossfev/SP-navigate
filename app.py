@@ -175,12 +175,51 @@ def build_config_for_planner(
     import sys
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     from navigate.core.config import NavigateConfig, DataSourceConfig, ColumnMapping, ExportFormatConfig
+    from navigate.core.models import Point
     
     output_dir = tempfile.mkdtemp(prefix="sp_navigate_")
     
-    # Save dataframe to temp file
-    points_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-    points_df.to_excel(points_file.name, index=False)
+    # Convert dataframe to points directly (bypass file loading)
+    points = []
+    for idx, row in points_df.iterrows():
+        addr = str(row.get("地址", "")).strip()
+        if not addr or addr == "nan":
+            continue
+        
+        # Get coordinates if available
+        lng, lat = None, None
+        if "经度" in row and "纬度" in row:
+            lng_val = row.get("经度")
+            lat_val = row.get("纬度")
+            if pd.notna(lng_val) and pd.notna(lat_val):
+                lng, lat = float(lng_val), float(lat_val)
+        elif "坐标" in row:
+            coord_str = str(row.get("坐标", "")).strip()
+            if coord_str and "," in coord_str:
+                parts = coord_str.split(",")
+                lng, lat = float(parts[0]), float(parts[1])
+        
+        # Skip if no coordinates (will be geocoded later if needed)
+        # For now, create point with address as name
+        points.append(Point(
+            id=str(idx),
+            name=addr,
+            lng=lng or 0.0,  # Placeholder
+            lat=lat or 0.0,  # Placeholder
+            metadata={"address": addr}
+        ))
+    
+    # Save points info for planner to use
+    points_info_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode='w', encoding='utf-8')
+    import json
+    points_data = {
+        "points": [
+            {"id": p.id, "name": p.name, "lng": p.lng, "lat": p.lat, "metadata": p.metadata}
+            for p in points
+        ]
+    }
+    json.dump(points_data, points_info_file, ensure_ascii=False, indent=2)
+    points_info_file.close()
     
     config = NavigateConfig()
     
@@ -210,15 +249,21 @@ def build_config_for_planner(
     config.distance.provider = "haversine"
     config.distance.avg_speed_kmh = 35.0
     
-    # Data - points
+    # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
-        file=points_file.name,
-        format="excel",
+        file=points_info_file.name,
+        format="json",
         column_mapping=ColumnMapping(
-            name="地址",
-            metadata={}
+            name="name",
+            lng="lng",
+            lat="lat",
+            id="id",
+            metadata={"address": "address"}
         )
     )
+    
+    # Store points directly in config for fallback
+    config._points_cache = points
     
     # Export
     config.export.output_dir = output_dir
@@ -228,7 +273,7 @@ def build_config_for_planner(
         ExportFormatConfig(type="docx", title="路线规划报告"),
         ExportFormatConfig(type="map", format="html"),
     ]
-
+    
     return config
 
 
@@ -237,9 +282,90 @@ def run_planner(config):
     import sys
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     from navigate.core.planner import Planner
+    from navigate.core.models import Point, DistanceMatrix
+    from navigate.distance.haversine import haversine
+    import json
     
-    planner = Planner(config)
-    result = planner.run()
+    # Use cached points if available (from Web app)
+    points = getattr(config, '_points_cache', None)
+    
+    if points is None:
+        # Fallback to file loading (for CLI usage)
+        planner = Planner(config)
+        result = planner.run()
+    else:
+        # Direct planning with cached points
+        # Geocode addresses if coordinates are placeholders (0.0)
+        print(f"\n[Data] {len(points)} points loaded from cache")
+        
+        # Check if geocoding is needed
+        needs_geocode = any(p.lng == 0.0 or p.lat == 0.0 for p in points)
+        
+        if needs_geocode:
+            print("[Geo] Geocoding addresses...")
+            from navigate.geocoding.amap import AmapGeocoder
+            
+            # Use the API key from requirements or default
+            amap_key = config.distance.options.get("amap_key", "b6410cb1a118bad10e6d1161d6e896f7")
+            geocoder = AmapGeocoder(amap_key)
+            
+            for pt in points:
+                if pt.lng == 0.0 or pt.lat == 0.0:
+                    result = geocoder.geocode(pt.name)
+                    if result:
+                        pt.lng, pt.lat = result
+                        print(f"  ✓ {pt.name[:30]} -> {pt.lat}, {pt.lng}")
+                    else:
+                        print(f"  ✗ {pt.name[:30]} - geocode failed")
+        
+        # Build distance matrix
+        print(f"\n[Matrix] Building {len(points)}x{len(points)} distance matrix...")
+        
+        def dist_func(a, b):
+            return haversine(a.lat, a.lng, b.lat, b.lng)
+        
+        dist_matrix = DistanceMatrix.from_points(points, dist_func)
+        print("  Done")
+        
+        # Run strategy
+        from navigate.strategies import STRATEGIES
+        from navigate.strategies.tsp import TspStrategy
+        from navigate.strategies.cluster import ClusterStrategy
+        from navigate.strategies.overnight import OvernightStrategy
+        
+        strategy_name = config.strategy.name
+        strategy_cls = STRATEGIES.get(strategy_name)
+        if not strategy_cls:
+            raise ValueError(f"Unknown strategy: {strategy_name}. "
+                             f"Available: {list(STRATEGIES.keys())}")
+        
+        if strategy_name == "cluster":
+            base_coord = None
+            if config.base_point.lng and config.base_point.lat:
+                base_coord = (config.base_point.lng, config.base_point.lat)
+            strategy = strategy_cls(config, base_coord=base_coord)
+        elif strategy_name == "overnight":
+            base_coord = None
+            if config.base_point.lng and config.base_point.lat:
+                base_coord = (config.base_point.lng, config.base_point.lat)
+            bp_name = config.base_point.name or "公司"
+            strategy = strategy_cls(config, base_coord=base_coord, base_name=bp_name)
+        else:
+            strategy = strategy_cls(config)
+        
+        result = strategy.plan(points, dist_matrix)
+        print(result.summary())
+        
+        # Export results
+        from navigate.io.exporters import EXPORTERS
+        output_dir = config.export.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for fmt in config.export.formats:
+            exporter_cls = EXPORTERS.get(fmt.type)
+            if exporter_cls:
+                exporter = exporter_cls(config)
+                exporter.export(result, output_dir, format_config=fmt)
     
     return {
         "result": result,
