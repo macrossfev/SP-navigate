@@ -225,9 +225,10 @@ def build_config_for_planner(
     config.export.formats = [
         ExportFormatConfig(type="json"),
         ExportFormatConfig(type="excel"),
+        ExportFormatConfig(type="docx", title="路线规划报告"),
         ExportFormatConfig(type="map", format="html"),
     ]
-    
+
     return config
 
 
@@ -638,47 +639,91 @@ def render_step5():
     # Download section
     st.divider()
     st.subheader("📥 下载结果")
-    
+
     output_dir = st.session_state.output_dir
-    
-    col1, col2, col3 = st.columns(3)
-    
+
     # Find output files
     excel_file = None
     json_file = None
+    docx_file = None
     map_files = []
-    
+
     if output_dir and os.path.exists(output_dir):
         for root, dirs, files in os.walk(output_dir):
             for f in files:
+                filepath = os.path.join(root, f)
                 if f.endswith(".xlsx"):
-                    excel_file = os.path.join(root, f)
+                    excel_file = filepath
                 elif f.endswith(".json"):
-                    json_file = os.path.join(root, f)
+                    json_file = filepath
+                elif f.endswith(".docx"):
+                    docx_file = filepath
                 elif f.endswith(".html") and "day_" in f:
-                    map_files.append(os.path.join(root, f))
-    
+                    map_files.append(filepath)
+
+    st.write(f"输出目录：`{output_dir}`")
+    st.write(f"找到的文件：Excel={excel_file is not None}, JSON={json_file is not None}, Word={docx_file is not None}, Maps={len(map_files)}")
+
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        if excel_file:
+        if excel_file and os.path.exists(excel_file):
             with open(excel_file, "rb") as f:
                 st.download_button(
-                    "📊 下载 Excel 结果",
+                    "📊 下载 Excel",
                     f.read(),
                     file_name="route_plan.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="dl_excel"
                 )
-    
+        else:
+            st.download_button(
+                "📊 下载 Excel",
+                data=b"",
+                file_name="route_plan.xlsx",
+                disabled=True,
+                key="dl_excel_dis"
+            )
+
     with col2:
-        if json_file:
+        if docx_file and os.path.exists(docx_file):
+            with open(docx_file, "rb") as f:
+                st.download_button(
+                    "📄 下载 Word 报告",
+                    f.read(),
+                    file_name="route_plan_report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="dl_docx"
+                )
+        else:
+            st.download_button(
+                "📄 下载 Word 报告",
+                data=b"",
+                file_name="route_plan_report.docx",
+                disabled=True,
+                key="dl_docx_dis"
+            )
+
+    with col3:
+        if json_file and os.path.exists(json_file):
             with open(json_file, "rb") as f:
                 st.download_button(
-                    "📄 下载 JSON 结果",
+                    "📄 下载 JSON",
                     f.read(),
                     file_name="route_plan.json",
-                    mime="application/json"
+                    mime="application/json",
+                    key="dl_json"
                 )
-    
-    with col3:
+        else:
+            st.download_button(
+                "📄 下载 JSON",
+                data=b"",
+                file_name="route_plan.json",
+                disabled=True,
+                key="dl_json_dis"
+            )
+
+    with col4:
         if map_files:
             import zipfile
             map_zip_path = os.path.join(output_dir, "maps.zip")
@@ -687,16 +732,25 @@ def render_step5():
                     zf.write(mf, os.path.basename(mf))
             with open(map_zip_path, "rb") as f:
                 st.download_button(
-                    "🗺️ 下载地图文件",
+                    "🗺️ 下载地图",
                     f.read(),
                     file_name="route_maps.zip",
-                    mime="application/zip"
+                    mime="application/zip",
+                    key="dl_maps"
                 )
-    
+        else:
+            st.download_button(
+                "🗺️ 下载地图",
+                data=b"",
+                file_name="route_maps.zip",
+                disabled=True,
+                key="dl_maps_dis"
+            )
+
     if st.button("🔄 重新规划"):
         st.session_state.step = 4
         st.rerun()
-    
+
     if st.button("🏠 重新开始"):
         st.session_state.step = 1
         st.session_state.validated_data = None
