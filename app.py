@@ -218,15 +218,15 @@ def merge_corrected_data(original_df, corrected_df):
     # Copy original DataFrame with all columns (including coordinates)
     result_df = original_df.copy()
     result_df["地址"] = corrected_addresses
-    
+
     # Re-geocode the corrected addresses to get coordinates
     # This is necessary because the correction map doesn't include coordinates
     print(f"\n[Geo] Re-geocoding {len(corrected_addresses)} corrected addresses...")
-    
+
     from navigate.geocoding.amap import AmapGeocoder
     amap_key = "de9b271958d5cf291a018d5e95f7e53d"
     geocoder = AmapGeocoder(amap_key, request_delay=0.4)
-    
+
     # Initialize coordinate columns if not exist
     if "经度" not in result_df.columns:
         result_df["经度"] = None
@@ -234,9 +234,11 @@ def merge_corrected_data(original_df, corrected_df):
         result_df["纬度"] = None
     if "地理编码状态" not in result_df.columns:
         result_df["地理编码状态"] = "未验证"
-    
+
     # Re-geocode corrected addresses
     geocode_count = 0
+    failed_addresses = []
+    
     for idx, addr in enumerate(corrected_addresses):
         # Check if address was corrected
         original_addr = original_df["地址"].iloc[idx]
@@ -251,16 +253,22 @@ def merge_corrected_data(original_df, corrected_df):
                     geocode_count += 1
                 else:
                     result_df.at[idx, "地理编码状态"] = "失败"
+                    failed_addresses.append((addr, "API 返回空结果"))
             except Exception as e:
-                print(f"  Geocode failed for {addr}: {e}")
                 result_df.at[idx, "地理编码状态"] = "失败"
+                failed_addresses.append((addr, str(e)))
         else:
             # Address not corrected, keep original coordinates
             pass
-    
+
     print(f"  Re-geocoded {geocode_count} corrected addresses")
-    
-    return result_df, len(correction_map)
+    if failed_addresses:
+        print(f"  Failed: {len(failed_addresses)} addresses")
+        for addr, reason in failed_addresses:
+            print(f"    - {addr}: {reason}")
+
+    # Return additional info for display
+    return result_df, len(correction_map), geocode_count, failed_addresses
 
 
 def build_config_for_planner(
@@ -750,43 +758,57 @@ def render_step3():
         <p>上传已填写修正地址的 Excel 文件</p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     if "uploaded_df" not in st.session_state:
         st.error("请先上传原始数据")
         if st.button("← 返回上传"):
             st.session_state.step = 1
             st.rerun()
         return
-    
+
     corrected_file = st.file_uploader(
         "上传修正后的地址表",
         type=["xlsx", "xls"],
         key="upload_corrected"
     )
-    
+
     if corrected_file:
         corrected_df = pd.read_excel(corrected_file)
-        
+
         if "原始地址" not in corrected_df.columns or "修正后地址" not in corrected_df.columns:
             st.error("❌ 修正表必须包含'原始地址'和'修正后地址'列")
         else:
             # Merge
-            merged_df, corrected_count = merge_corrected_data(
+            merged_df, corrected_count, geocode_count, failed_addresses = merge_corrected_data(
                 st.session_state.uploaded_df,
                 corrected_df
             )
-            
+
             st.success(f"✅ 已合并修正数据，修正了 **{corrected_count}** 个地址")
+
+            # Display geocoding results
+            if geocode_count > 0:
+                st.success(f"✅ 已对 **{geocode_count}** 个修正地址进行高德验证，获取精确坐标")
             
+            if failed_addresses:
+                st.warning(f"⚠️ **{len(failed_addresses)}** 个修正地址无法被高德识别，请检查地址准确性")
+                with st.expander("📋 查看失败地址详情"):
+                    fail_df = pd.DataFrame({
+                        "地址": [addr for addr, _ in failed_addresses],
+                        "原因": [reason for _, reason in failed_addresses]
+                    })
+                    st.dataframe(fail_df, use_container_width=True)
+                    st.info("💡 建议：请检查地址格式，确保包含完整的区县和街道信息")
+
             with st.expander("📋 修正后数据预览"):
                 st.dataframe(merged_df.head(), use_container_width=True)
-            
+
             st.session_state.validated_df = merged_df
-            
+
             if st.button("生成规划方案 →", type="primary"):
                 st.session_state.step = 4
                 st.rerun()
-    
+
     if st.button("← 返回验证"):
         st.session_state.step = 2
         st.rerun()
