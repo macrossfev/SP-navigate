@@ -1,13 +1,16 @@
 """
 SP-navigate Streamlit Web Application
-Simplified interface for route planning with file upload and visual results.
+Route planning with template download, address validation, and correction workflow.
 """
 import streamlit as st
 import pandas as pd
 import os
 import tempfile
-import yaml
+import json
+import requests
+import time
 from pathlib import Path
+from datetime import datetime
 
 # Configure page
 st.set_page_config(
@@ -22,29 +25,463 @@ st.markdown("""
 <style>
     .main-header {font-size: 2.5rem; color: #1f77b4; margin-bottom: 1rem;}
     .sub-header {font-size: 1.2rem; color: #666; margin-bottom: 2rem;}
-    .result-box {background: #f0f2f6; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;}
+    .step-box {background: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 1rem 0;}
+    .success-box {background: #d4edda; border-left: 4px solid #28a745; padding: 1rem; margin: 1rem 0;}
+    .warning-box {background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin: 1rem 0;}
+    .error-box {background: #f8d7da; border-left: 4px solid #dc3545; padding: 1rem; margin: 1rem 0;}
     .metric-card {background: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
-    .overnight-badge {background: #9933CC; color: white; padding: 0.2rem 0.6rem; border-radius: 1rem; font-size: 0.8rem;}
-    .single-day-badge {background: #00AA00; color: white; padding: 0.2rem 0.6rem; border-radius: 1rem; font-size: 0.8rem;}
 </style>
 """, unsafe_allow_html=True)
 
 # Session state
+if "step" not in st.session_state:
+    st.session_state.step = 1
+if "validated_data" not in st.session_state:
+    st.session_state.validated_data = None
+if "failed_addresses" not in st.session_state:
+    st.session_state.failed_addresses = []
 if "result" not in st.session_state:
     st.session_state.result = None
 if "output_dir" not in st.session_state:
     st.session_state.output_dir = None
 
+# Constants
+AMAP_KEY = "b6410cb1a118bad10e6d1161d6e896f7"
+DEFAULT_CITY = "重庆"
+DEFAULT_DISTRICT = "长寿区"
 
-def main():
-    st.markdown('<h1 class="main-header">🗺️ SP-navigate 路线规划系统</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">多点位路线规划与调度优化系统 - 支持单日往返和隔夜住宿两种模式</p>', unsafe_allow_html=True)
+# ============== Helper Functions ==============
+
+def create_template():
+    """Create standard Excel template."""
+    data = {
+        "序号": [1, 2, 3, 4, 5],
+        "地址": [
+            "长寿区凤城街道 XX 社区 XX 小区",
+            "长寿区菩提街道 XX 路 XX 号",
+            "长寿区晏家街道 XX 小区",
+            "长寿区江南街道 XX 花园",
+            "长寿区渡舟街道 XX 苑"
+        ],
+        "小区名称": ["XX 小区", "XX 路小区", "XX 花园", "XX 苑", "XX 家园"],
+        "备注": ["", "", "", "", ""]
+    }
+    df = pd.DataFrame(data)
     
-    # Sidebar
-    with st.sidebar:
-        st.header("⚙️ 配置")
+    output = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    df.to_excel(output.name, index=False, sheet_name="采样点")
+    return output.name
+
+
+def geocode_address(address, city=DEFAULT_CITY):
+    """Geocode single address using Amap API."""
+    url = "https://restapi.amap.com/v3/geocode/geo"
+    params = {
+        "address": address,
+        "city": city,
+        "key": AMAP_KEY
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        data = resp.json()
         
-        # Strategy selection
+        if data.get("status") == "1" and data.get("geocodes"):
+            geo = data["geocodes"][0]
+            return {
+                "status": "OK",
+                "input": address,
+                "formatted": geo.get("formatted_address", ""),
+                "district": geo.get("district", ""),
+                "location": geo.get("location", ""),
+                "level": geo.get("level", "")
+            }
+    except Exception as e:
+        pass
+    
+    return {
+        "status": "FAIL",
+        "input": address,
+        "formatted": "",
+        "district": "",
+        "location": "",
+        "level": ""
+    }
+
+
+def validate_addresses(df, progress_bar):
+    """Validate all addresses in dataframe."""
+    results = []
+    
+    addresses = df["地址"].dropna().tolist()
+    total = len(addresses)
+    
+    for i, addr in enumerate(addresses):
+        result = geocode_address(addr)
+        results.append(result)
+        progress_bar.progress((i + 1) / total)
+        time.sleep(0.1)  # Rate limiting
+    
+    return results
+
+
+def export_failed_addresses(failed, output_path):
+    """Export failed addresses to Excel for correction."""
+    df = pd.DataFrame({
+        "原始地址": [r["input"] for r in failed],
+        "修正后地址": [""] * len(failed),
+        "备注": [""] * len(failed)
+    })
+    df.to_excel(output_path, index=False, sheet_name="待修正地址")
+    return output_path
+
+
+def merge_corrected_data(original_df, corrected_df):
+    """Merge original data with corrected addresses."""
+    # Create mapping from corrected file
+    correction_map = {}
+    if "原始地址" in corrected_df.columns and "修正后地址" in corrected_df.columns:
+        for _, row in corrected_df.iterrows():
+            original = str(row["原始地址"]).strip()
+            corrected = str(row["修正后地址"]).strip()
+            if corrected and corrected != "nan":
+                correction_map[original] = corrected
+    
+    # Apply corrections
+    corrected_addresses = []
+    for addr in original_df["地址"]:
+        if addr in correction_map:
+            corrected_addresses.append(correction_map[addr])
+        else:
+            corrected_addresses.append(addr)
+    
+    result_df = original_df.copy()
+    result_df["地址"] = corrected_addresses
+    return result_df, len(correction_map)
+
+
+def build_config_for_planner(
+    points_df,
+    strategy,
+    base_name,
+    base_lng=None,
+    base_lat=None,
+    max_daily_hours=8.0,
+    max_daily_points=5,
+    stop_time_min=15,
+    overnight_threshold_km=80.0,
+    single_day_max_hours=6.0,
+):
+    """Build configuration for planner."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    from navigate.core.config import NavigateConfig, DataSourceConfig, ColumnMapping, ExportFormatConfig
+    
+    output_dir = tempfile.mkdtemp(prefix="sp_navigate_")
+    
+    # Save dataframe to temp file
+    points_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    points_df.to_excel(points_file.name, index=False)
+    
+    config = NavigateConfig()
+    
+    # Base point
+    config.base_point.name = base_name
+    if base_lng and base_lat:
+        config.base_point.lng = base_lng
+        config.base_point.lat = base_lat
+    
+    # Strategy
+    config.strategy.name = strategy
+    config.strategy.options = {
+        "cluster_method": "centroid",
+        "outlier_threshold_km": overnight_threshold_km,
+    }
+    
+    # Constraints
+    config.constraints.max_daily_hours = max_daily_hours
+    config.constraints.max_daily_points = max_daily_points
+    config.constraints.min_daily_points = 1
+    config.constraints.stop_time_per_point_min = stop_time_min
+    config.constraints.roundtrip_overhead_min = 60
+    config.constraints.overnight_threshold_km = overnight_threshold_km
+    config.constraints.single_day_max_hours = single_day_max_hours
+    
+    # Distance
+    config.distance.provider = "haversine"
+    config.distance.avg_speed_kmh = 35.0
+    
+    # Data - points
+    config.data.points = DataSourceConfig(
+        file=points_file.name,
+        format="excel",
+        column_mapping=ColumnMapping(
+            name="地址",
+            metadata={}
+        )
+    )
+    
+    # Export
+    config.export.output_dir = output_dir
+    config.export.formats = [
+        ExportFormatConfig(type="json"),
+        ExportFormatConfig(type="excel"),
+        ExportFormatConfig(type="map", format="html"),
+    ]
+    
+    return config
+
+
+def run_planner(config):
+    """Run the route planner."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    from navigate.core.planner import Planner
+    
+    planner = Planner(config)
+    result = planner.run()
+    
+    return {
+        "result": result,
+        "output_dir": config.export.output_dir,
+    }
+
+
+# ============== UI Functions ==============
+
+def render_step1():
+    """Step 1: Download template or upload data."""
+    st.markdown("""
+    <div class="step-box">
+        <h3>📋 步骤 1: 准备数据</h3>
+        <p>请选择以下方式之一：</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📥 下载标准模板")
+        template_path = create_template()
+        with open(template_path, "rb") as f:
+            st.download_button(
+                label="📊 下载 Excel 模板",
+                data=f.read(),
+                file_name="采样点标准模板.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_template"
+            )
+        st.info("💡 模板包含示例数据，请按格式填写您的采样点地址")
+    
+    with col2:
+        st.subheader("📤 上传数据文件")
+        uploaded_file = st.file_uploader(
+            "上传填写好的 Excel 文件",
+            type=["xlsx", "xls"],
+            key="upload_points"
+        )
+    
+    if uploaded_file:
+        df = pd.read_excel(uploaded_file)
+        st.session_state.uploaded_df = df
+        st.session_state.uploaded_file = uploaded_file
+        st.success(f"✅ 已加载 {len(df)} 个点位")
+        
+        with st.expander("📋 数据预览"):
+            st.dataframe(df.head(), use_container_width=True)
+        
+        if st.button("下一步：地址验证 →", type="primary"):
+            st.session_state.step = 2
+            st.rerun()
+
+
+def render_step2():
+    """Step 2: Address validation."""
+    st.markdown("""
+    <div class="step-box">
+        <h3>🔍 步骤 2: 地址验证与清洗</h3>
+        <p>使用高德地图 API 验证地址有效性</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if "uploaded_df" not in st.session_state:
+        st.error("请先上传数据文件")
+        if st.button("← 返回上传"):
+            st.session_state.step = 1
+            st.rerun()
+        return
+    
+    df = st.session_state.uploaded_df
+    
+    # Check if "地址" column exists
+    if "地址" not in df.columns:
+        st.error("❌ Excel 文件必须包含'地址'列")
+        if st.button("← 返回上传"):
+            st.session_state.step = 1
+            st.rerun()
+        return
+    
+    st.write(f"待验证地址：**{len(df)}** 个")
+    
+    # Validation settings
+    with st.expander("⚙️ 验证设置"):
+        city = st.text_input("城市", value=DEFAULT_CITY)
+        district = st.text_input("区县", value=DEFAULT_DISTRICT)
+        st.session_state.validate_city = city
+        st.session_state.validate_district = district
+    
+    if st.button("🔍 开始验证地址", type="primary"):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        status_text.text("正在调用高德 API 验证地址...")
+        results = validate_addresses(df, progress_bar)
+        
+        ok_results = [r for r in results if r["status"] == "OK"]
+        fail_results = [r for r in results if r["status"] == "FAIL"]
+        
+        # Check district match
+        wrong_district = []
+        for r in ok_results:
+            if st.session_state.validate_district not in r.get("district", ""):
+                wrong_district.append(r)
+        
+        st.session_state.validation_results = results
+        st.session_state.ok_results = ok_results
+        st.session_state.failed_addresses = fail_results
+        st.session_state.wrong_district = wrong_district
+        
+        # Summary
+        st.success("✅ 验证完成！")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("✅ 匹配成功", len(ok_results) - len(wrong_district))
+        with col2:
+            st.metric("❌ 匹配失败", len(fail_results))
+        with col3:
+            st.metric("⚠️ 区域不符", len(wrong_district))
+        
+        if fail_results or wrong_district:
+            st.markdown('<div class="warning-box">', unsafe_allow_html=True)
+            st.write("### ⚠️ 需要处理的地址")
+            
+            if fail_results:
+                st.write(f"**匹配失败 ({len(fail_results)} 个):**")
+                fail_df = pd.DataFrame({
+                    "原始地址": [r["input"] for r in fail_results]
+                })
+                st.dataframe(fail_df, use_container_width=True)
+            
+            if wrong_district:
+                st.write(f"**区域不符 ({len(wrong_district)} 个):**")
+                wrong_df = pd.DataFrame({
+                    "原始地址": [r["input"] for r in wrong_district],
+                    "实际位置": [f"{r['district']} - {r['formatted']}" for r in wrong_district]
+                })
+                st.dataframe(wrong_df, use_container_width=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Export failed addresses
+            failed_output = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+            all_failed = fail_results + wrong_district
+            export_failed_addresses(all_failed, failed_output.name)
+            
+            with open(failed_output.name, "rb") as f:
+                st.download_button(
+                    label="📥 下载待修正地址表",
+                    data=f.read(),
+                    file_name="待修正地址.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            
+            st.info("💡 请下载待修正地址表，填写'修正后地址'列后，在下一步上传")
+            
+            if st.button("我已修正，上传修正表 →"):
+                st.session_state.step = 3
+                st.rerun()
+        else:
+            st.success("🎉 所有地址验证通过！可以直接生成规划方案")
+            if st.button("生成规划方案 →"):
+                st.session_state.validated_df = df.copy()
+                st.session_state.step = 4
+                st.rerun()
+    
+    if st.button("← 返回上一步"):
+        st.session_state.step = 1
+        st.rerun()
+
+
+def render_step3():
+    """Step 3: Upload corrected addresses."""
+    st.markdown("""
+    <div class="step-box">
+        <h3>📝 步骤 3: 上传修正后的地址表</h3>
+        <p>上传已填写修正地址的 Excel 文件</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if "uploaded_df" not in st.session_state:
+        st.error("请先上传原始数据")
+        if st.button("← 返回上传"):
+            st.session_state.step = 1
+            st.rerun()
+        return
+    
+    corrected_file = st.file_uploader(
+        "上传修正后的地址表",
+        type=["xlsx", "xls"],
+        key="upload_corrected"
+    )
+    
+    if corrected_file:
+        corrected_df = pd.read_excel(corrected_file)
+        
+        if "原始地址" not in corrected_df.columns or "修正后地址" not in corrected_df.columns:
+            st.error("❌ 修正表必须包含'原始地址'和'修正后地址'列")
+        else:
+            # Merge
+            merged_df, corrected_count = merge_corrected_data(
+                st.session_state.uploaded_df,
+                corrected_df
+            )
+            
+            st.success(f"✅ 已合并修正数据，修正了 **{corrected_count}** 个地址")
+            
+            with st.expander("📋 修正后数据预览"):
+                st.dataframe(merged_df.head(), use_container_width=True)
+            
+            st.session_state.validated_df = merged_df
+            
+            if st.button("生成规划方案 →", type="primary"):
+                st.session_state.step = 4
+                st.rerun()
+    
+    if st.button("← 返回验证"):
+        st.session_state.step = 2
+        st.rerun()
+
+
+def render_step4():
+    """Step 4: Generate plan."""
+    st.markdown("""
+    <div class="step-box">
+        <h3>🗺️ 步骤 4: 生成路线规划</h3>
+        <p>配置参数并生成最优路线方案</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if "validated_df" not in st.session_state:
+        st.error("请先完成地址验证")
+        if st.button("← 返回验证"):
+            st.session_state.step = 2
+            st.rerun()
+        return
+    
+    # Sidebar configuration
+    with st.sidebar:
+        st.header("⚙️ 规划配置")
+        
         strategy = st.selectbox(
             "规划策略",
             options=["overnight", "tsp", "cluster"],
@@ -52,102 +489,42 @@ def main():
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
                 "cluster": "📍 聚类分组"
-            }.get(x, x),
-            help="overnight: 自动判断远近距离，远距离启用隔夜模式；tsp: 全部单日往返；cluster: 按区域聚类"
+            }.get(x, x)
         )
         
         st.divider()
         
-        # Constraints
-        st.subheader("约束条件")
         max_daily_hours = st.slider("每日最大工时 (小时)", 4.0, 12.0, 8.0, 0.5)
         max_daily_points = st.slider("每日最大点数", 1, 20, 5, 1)
         stop_time_min = st.slider("每点停留时间 (分钟)", 5, 60, 15, 5)
         
-        # Overnight settings
         st.divider()
-        st.subheader("隔夜模式设置")
+        
         overnight_threshold_km = st.slider(
             "隔夜距离阈值 (公里)",
-            0.0, 200.0, 80.0, 10.0,
-            help="超过此距离的点位将启用隔夜住宿模式"
+            0.0, 200.0, 80.0, 10.0
         )
         single_day_max_hours = st.slider("单日往返最大工时 (小时)", 4.0, 10.0, 6.0, 0.5)
-        
-        # Distance settings
-        st.divider()
-        st.subheader("距离计算")
-        distance_provider = st.selectbox(
-            "距离提供者",
-            options=["haversine", "amap"],
-            format_func=lambda x: "高德地图 (实时路况)" if x == "amap" else "半正矢公式 (直线距离)",
-        )
-        avg_speed_kmh = st.slider("平均速度 (km/h)", 20, 80, 35, 5)
-        
-        if distance_provider == "amap":
-            amap_key = st.text_input("高德 API Key", type="password", help="使用高德地图需要 API Key")
-        else:
-            amap_key = ""
     
-    # Main content
-    col1, col2 = st.columns([2, 1])
-    
+    # Base point config
+    st.subheader("起点配置")
+    col1, col2 = st.columns(2)
     with col1:
-        st.subheader("1️⃣ 上传采样点数据")
-        
-        uploaded_file = st.file_uploader(
-            "上传 Excel 文件",
-            type=["xlsx", "xls"],
-            help="Excel 文件需包含'地址'列，可选'坐标'列 (格式：经度，纬度)"
-        )
-        
-        if uploaded_file:
-            # Preview data
-            df = pd.read_excel(uploaded_file)
-            st.write(f"✅ 已加载 **{len(df)}** 个点位")
-            
-            with st.expander("📋 数据预览"):
-                st.dataframe(df.head(10), use_container_width=True)
-            
-            # Save to temp file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as f:
-                f.write(uploaded_file.getvalue())
-                temp_file = f.name
-    
-    with col2:
-        st.subheader("2️⃣ 起点配置")
-        
         base_name = st.text_input(
             "公司名称/起点",
-            value="中共重庆市自来水有限公司委员会",
-            help="出发点和返回点"
+            value="中共重庆市自来水有限公司委员会"
         )
-        
-        # Optional: manual coordinates
+    with col2:
         with st.expander("📍 手动输入坐标 (可选)"):
             base_lng = st.number_input("经度", value=107.081, format="%.6f")
             base_lat = st.number_input("纬度", value=29.857, format="%.6f")
     
-    # Run button
-    st.divider()
-    st.subheader("3️⃣ 开始规划")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        run_button = st.button(
-            "▶️ 运行路线规划",
-            type="primary",
-            use_container_width=True,
-            disabled=not uploaded_file
-        )
-    
-    if run_button and uploaded_file:
-        with st.spinner("🔄 正在规划路线，请稍候..."):
+    if st.button("▶️ 开始规划", type="primary"):
+        with st.spinner("🔄 正在生成路线规划，请稍候..."):
             try:
-                # Build config
-                config = build_config(
+                config = build_config_for_planner(
+                    points_df=st.session_state.validated_df,
                     strategy=strategy,
-                    points_file=temp_file,
                     base_name=base_name,
                     base_lng=base_lng if base_lng else None,
                     base_lat=base_lat if base_lat else None,
@@ -156,200 +533,73 @@ def main():
                     stop_time_min=stop_time_min,
                     overnight_threshold_km=overnight_threshold_km,
                     single_day_max_hours=single_day_max_hours,
-                    distance_provider=distance_provider,
-                    avg_speed_kmh=avg_speed_kmh,
-                    amap_key=amap_key,
                 )
                 
-                # Run planner
                 result = run_planner(config)
                 
                 st.session_state.result = result
                 st.session_state.output_dir = config.export.output_dir
                 
                 st.success("✅ 路线规划完成！")
+                st.session_state.step = 5
+                st.rerun()
                 
             except Exception as e:
                 st.error(f"❌ 规划失败：{str(e)}")
                 import traceback
                 st.code(traceback.format_exc())
     
-    # Display results
-    if st.session_state.result:
-        display_results(st.session_state.result, st.session_state.output_dir)
+    if st.button("← 返回上一步"):
+        st.session_state.step = 2
+        st.rerun()
 
 
-def build_config(
-    strategy: str,
-    points_file: str,
-    base_name: str,
-    base_lng: float = None,
-    base_lat: float = None,
-    max_daily_hours: float = 8.0,
-    max_daily_points: int = 5,
-    stop_time_min: int = 15,
-    overnight_threshold_km: float = 80.0,
-    single_day_max_hours: float = 6.0,
-    distance_provider: str = "haversine",
-    avg_speed_kmh: float = 35.0,
-    amap_key: str = "",
-) -> dict:
-    """Build configuration dictionary."""
-    output_dir = tempfile.mkdtemp(prefix="sp_navigate_")
+def render_step5():
+    """Step 5: View and download results."""
+    st.markdown("""
+    <div class="step-box">
+        <h3>📊 步骤 5: 查看结果</h3>
+        <p>查看规划方案并下载结果文件</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    config = {
-        "base_point": {
-            "name": base_name,
-        },
-        "strategy": {
-            "name": strategy,
-            "options": {
-                "cluster_method": "centroid",
-                "outlier_threshold_km": overnight_threshold_km,
-            }
-        },
-        "constraints": {
-            "max_daily_hours": max_daily_hours,
-            "max_daily_points": max_daily_points,
-            "min_daily_points": 1,
-            "stop_time_per_point_min": stop_time_min,
-            "roundtrip_overhead_min": 60,
-            "overnight_threshold_km": overnight_threshold_km,
-            "single_day_max_hours": single_day_max_hours,
-        },
-        "distance": {
-            "provider": distance_provider,
-            "avg_speed_kmh": avg_speed_kmh,
-        },
-        "data": {
-            "points": {
-                "file": points_file,
-                "format": "excel",
-                "column_mapping": {
-                    "name": "地址",
-                    "coordinates": "坐标",
-                }
-            }
-        },
-        "export": {
-            "output_dir": output_dir,
-            "formats": [
-                {"type": "json"},
-                {"type": "excel"},
-                {"type": "map", "format": "html"},
-            ]
-        }
-    }
+    if "result" not in st.session_state:
+        st.error("请先生成规划方案")
+        if st.button("← 返回规划"):
+            st.session_state.step = 4
+            st.rerun()
+        return
     
-    if base_lng and base_lat:
-        config["base_point"]["lng"] = base_lng
-        config["base_point"]["lat"] = base_lat
-    
-    if distance_provider == "amap" and amap_key:
-        config["distance"]["amap_key"] = amap_key
-        config["distance"]["request_delay"] = 0.5
-    
-    return config
-
-
-def run_planner(config: dict) -> dict:
-    """Run the route planner."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent / "src"))
-    
-    from navigate.core.config import NavigateConfig
-    from navigate.core.planner import Planner
-    
-    # Convert dict to NavigateConfig
-    config_obj = NavigateConfig()
-    
-    # Base point
-    bp = config["base_point"]
-    config_obj.base_point.name = bp.get("name", "")
-    config_obj.base_point.lng = bp.get("lng")
-    config_obj.base_point.lat = bp.get("lat")
-    
-    # Strategy
-    config_obj.strategy.name = config["strategy"]["name"]
-    config_obj.strategy.options = config["strategy"].get("options", {})
-    
-    # Constraints
-    c = config["constraints"]
-    config_obj.constraints.max_daily_hours = c["max_daily_hours"]
-    config_obj.constraints.max_daily_points = c["max_daily_points"]
-    config_obj.constraints.min_daily_points = c["min_daily_points"]
-    config_obj.constraints.stop_time_per_point_min = c["stop_time_per_point_min"]
-    config_obj.constraints.roundtrip_overhead_min = c["roundtrip_overhead_min"]
-    config_obj.constraints.overnight_threshold_km = c.get("overnight_threshold_km", 0)
-    config_obj.constraints.single_day_max_hours = c.get("single_day_max_hours", 0)
-    
-    # Distance
-    d = config["distance"]
-    config_obj.distance.provider = d["provider"]
-    config_obj.distance.avg_speed_kmh = d["avg_speed_kmh"]
-    config_obj.distance.options = {k: v for k, v in d.items() if k not in ["provider", "avg_speed_kmh"]}
-    
-    # Data
-    config_obj.data.points.file = config["data"]["points"]["file"]
-    config_obj.data.points.format = "excel"
-    
-    # Export
-    config_obj.export.output_dir = config["export"]["output_dir"]
-    config_obj.export.formats = []
-    for fmt in config["export"]["formats"]:
-        from navigate.core.config import ExportFormatConfig
-        config_obj.export.formats.append(ExportFormatConfig(
-            type=fmt.get("type", "json"),
-            format=fmt.get("format", "html"),
-        ))
-    
-    # Run planner
-    planner = Planner(config_obj)
-    result = planner.run()
-    
-    return {
-        "result": result,
-        "output_dir": config_obj.export.output_dir,
-    }
-
-
-def display_results(result_data: dict, output_dir: str):
-    """Display planning results."""
+    result_data = st.session_state.result
     result = result_data["result"]
     
-    st.divider()
-    st.subheader("📊 规划结果")
-    
     # Summary metrics
+    st.subheader("📈 规划概览")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("总点位", result.total_points)
-    
     with col2:
         st.metric("总天数", result.total_days)
-    
     with col3:
         st.metric("总距离", f"{result.total_distance_km:.1f} km")
-    
     with col4:
         st.metric("总时间", f"{result.total_hours:.1f} h")
     
     # Day-by-day breakdown
-    st.markdown("### 📅 每日行程")
+    st.subheader("📅 每日行程")
     
     for day in result.days:
         trip_type_badge = (
-            '<span class="overnight-badge">🏨 隔夜住宿</span>'
+            '<span style="background:#9933CC;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">🏨 隔夜住宿</span>'
             if day.is_overnight else
-            '<span class="single-day-badge">🚗 单日往返</span>'
+            '<span style="background:#00AA00;color:white;padding:2px 8px;border-radius:10px;font-size:12px;">🚗 单日往返</span>'
         )
         
         with st.expander(
             f"**第 {day.day} 天** {trip_type_badge} - "
             f"{day.point_count} 点位 | {day.drive_distance_km:.1f} km | {day.total_time_hours:.1f} h"
         ):
-            # Route info
             col1, col2 = st.columns(2)
             with col1:
                 st.write(f"**起点**: {day.start_point_name or 'N/A'}")
@@ -361,7 +611,6 @@ def display_results(result_data: dict, output_dir: str):
             if day.is_overnight and day.hotel:
                 st.info(f"🏨 **住宿点**: {day.hotel.name}")
             
-            # Point list
             st.write("**采样点列表**:")
             point_data = []
             for i, p in enumerate(day.points):
@@ -373,14 +622,17 @@ def display_results(result_data: dict, output_dir: str):
                 })
             st.dataframe(pd.DataFrame(point_data), use_container_width=True)
     
-    # Download links
+    # Download section
     st.divider()
     st.subheader("📥 下载结果")
+    
+    output_dir = st.session_state.output_dir
     
     col1, col2, col3 = st.columns(3)
     
     # Find output files
     excel_file = None
+    json_file = None
     map_files = []
     
     if output_dir and os.path.exists(output_dir):
@@ -388,6 +640,8 @@ def display_results(result_data: dict, output_dir: str):
             for f in files:
                 if f.endswith(".xlsx"):
                     excel_file = os.path.join(root, f)
+                elif f.endswith(".json"):
+                    json_file = os.path.join(root, f)
                 elif f.endswith(".html") and "day_" in f:
                     map_files.append(os.path.join(root, f))
     
@@ -398,48 +652,23 @@ def display_results(result_data: dict, output_dir: str):
                     "📊 下载 Excel 结果",
                     f.read(),
                     file_name="route_plan.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-        else:
-            st.download_button(
-                "📊 下载 Excel 结果",
-                b"",
-                file_name="route_plan.xlsx",
-                disabled=True,
-            )
     
     with col2:
-        # JSON result
-        import json
-        json_data = {
-            "strategy": result.strategy_name,
-            "total_days": result.total_days,
-            "total_points": result.total_points,
-            "total_distance_km": result.total_distance_km,
-            "total_hours": result.total_hours,
-            "days": [
-                {
-                    "day": d.day,
-                    "trip_type": d.trip_type.value,
-                    "points": d.point_count,
-                    "distance_km": d.drive_distance_km,
-                    "hours": d.total_time_hours,
-                }
-                for d in result.days
-            ]
-        }
-        st.download_button(
-            "📄 下载 JSON 结果",
-            json.dumps(json_data, ensure_ascii=False, indent=2),
-            file_name="route_plan.json",
-            mime="application/json",
-        )
+        if json_file:
+            with open(json_file, "rb") as f:
+                st.download_button(
+                    "📄 下载 JSON 结果",
+                    f.read(),
+                    file_name="route_plan.json",
+                    mime="application/json"
+                )
     
     with col3:
-        # Map files
         if map_files:
-            map_zip_path = os.path.join(output_dir, "maps.zip")
             import zipfile
+            map_zip_path = os.path.join(output_dir, "maps.zip")
             with zipfile.ZipFile(map_zip_path, 'w') as zf:
                 for mf in map_files:
                     zf.write(mf, os.path.basename(mf))
@@ -448,8 +677,56 @@ def display_results(result_data: dict, output_dir: str):
                     "🗺️ 下载地图文件",
                     f.read(),
                     file_name="route_maps.zip",
-                    mime="application/zip",
+                    mime="application/zip"
                 )
+    
+    if st.button("🔄 重新规划"):
+        st.session_state.step = 4
+        st.rerun()
+    
+    if st.button("🏠 重新开始"):
+        st.session_state.step = 1
+        st.session_state.validated_data = None
+        st.session_state.result = None
+        st.rerun()
+
+
+def main():
+    st.markdown('<h1 class="main-header">🗺️ SP-navigate 路线规划系统</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">多点位路线规划与调度优化系统</p>', unsafe_allow_html=True)
+    
+    # Progress indicator
+    steps = ["准备数据", "地址验证", "上传修正", "生成规划", "查看结果"]
+    
+    # Progress bar
+    progress = st.session_state.step / len(steps)
+    st.progress(progress)
+    
+    # Step indicator
+    col1, col2, col3, col4, col5 = st.columns(5)
+    cols = [col1, col2, col3, col4, col5]
+    for i, col in enumerate(cols):
+        with col:
+            if i + 1 == st.session_state.step:
+                st.markdown(f"**{i+1}. {steps[i]}**")
+            elif i + 1 < st.session_state.step:
+                st.markdown(f"✅ {steps[i]}")
+            else:
+                st.markdown(f"⚪ {steps[i]}")
+    
+    st.divider()
+    
+    # Render current step
+    if st.session_state.step == 1:
+        render_step1()
+    elif st.session_state.step == 2:
+        render_step2()
+    elif st.session_state.step == 3:
+        render_step3()
+    elif st.session_state.step == 4:
+        render_step4()
+    elif st.session_state.step == 5:
+        render_step5()
 
 
 if __name__ == "__main__":
