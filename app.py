@@ -30,6 +30,28 @@ st.markdown("""
     .warning-box {background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin: 1rem 0;}
     .error-box {background: #f8d7da; border-left: 4px solid #dc3545; padding: 1rem; margin: 1rem 0;}
     .metric-card {background: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
+    
+    /* 步骤指示器样式 */
+    .step-indicator {
+        background: #1a1a2e !important;
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+    }
+    .step-indicator-active {
+        background: #1f77b4 !important;
+        color: #ffffff;
+        font-weight: bold;
+    }
+    .step-indicator-completed {
+        background: #28a745 !important;
+        color: #ffffff;
+    }
+    .step-indicator-pending {
+        background: #4a4a4a !important;
+        color: #888888;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -887,26 +909,41 @@ def render_step5():
 def main():
     st.markdown('<h1 class="main-header">🗺️ SP-navigate 路线规划系统</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">多点位路线规划与调度优化系统</p>', unsafe_allow_html=True)
-    
+
     # Progress indicator
     steps = ["准备数据", "地址验证", "上传修正", "生成规划", "查看结果"]
-    
+
     # Progress bar
     progress = st.session_state.step / len(steps)
     st.progress(progress)
-    
-    # Step indicator
+
+    # Step indicator with dark background
     col1, col2, col3, col4, col5 = st.columns(5)
     cols = [col1, col2, col3, col4, col5]
     for i, col in enumerate(cols):
         with col:
             if i + 1 == st.session_state.step:
-                st.markdown(f"**{i+1}. {steps[i]}**")
+                # Active step - blue background
+                col.markdown(
+                    f'<div class="step-indicator step-indicator-active" style="text-align:center;">'
+                    f'<strong>{i+1}. {steps[i]}</strong></div>',
+                    unsafe_allow_html=True
+                )
             elif i + 1 < st.session_state.step:
-                st.markdown(f"✅ {steps[i]}")
+                # Completed step - green background
+                col.markdown(
+                    f'<div class="step-indicator step-indicator-completed" style="text-align:center;">'
+                    f'✅ {steps[i]}</div>',
+                    unsafe_allow_html=True
+                )
             else:
-                st.markdown(f"⚪ {steps[i]}")
-    
+                # Pending step - gray background
+                col.markdown(
+                    f'<div class="step-indicator step-indicator-pending" style="text-align:center;">'
+                    f'⚪ {steps[i]}</div>',
+                    unsafe_allow_html=True
+                )
+
     st.divider()
     
     # Render current step
