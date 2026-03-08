@@ -140,10 +140,10 @@ def geocode_address(address, city=DEFAULT_CITY):
 def validate_addresses(df, progress_bar):
     """Validate all addresses in dataframe."""
     results = []
-    
+
     addresses = df["地址"].dropna().tolist()
     total = len(addresses)
-    
+
     for i, addr in enumerate(addresses):
         result = geocode_address(addr)
         results.append(result)
@@ -151,6 +151,29 @@ def validate_addresses(df, progress_bar):
         time.sleep(0.1)  # Rate limiting
     
     return results
+
+
+def create_validated_dataframe(df, results):
+    """Create validated DataFrame with coordinates from geocoding results."""
+    import copy
+    validated_df = df.copy()
+    
+    # Add coordinate columns
+    validated_df["经度"] = None
+    validated_df["纬度"] = None
+    validated_df["地理编码状态"] = "未验证"
+    
+    for i, result in enumerate(results):
+        if i < len(validated_df):
+            if result["status"] == "OK" and result.get("location"):
+                lng, lat = result["location"].split(",")
+                validated_df.at[i, "经度"] = float(lng)
+                validated_df.at[i, "纬度"] = float(lat)
+                validated_df.at[i, "地理编码状态"] = "成功"
+            else:
+                validated_df.at[i, "地理编码状态"] = "失败"
+    
+    return validated_df
 
 
 def export_failed_addresses(failed, output_path):
@@ -216,35 +239,33 @@ def build_config_for_planner(
     
     points = []
     geocode_count = 0
+    from_excel_count = 0
     
     for idx, row in points_df.iterrows():
         addr = str(row.get("地址", "")).strip()
         if not addr or addr == "nan":
             continue
 
-        # Try to geocode the address
+        # Try to get coordinates from DataFrame first
         lng, lat = None, None
         
-        # First check if coordinates are provided in the Excel
+        # Check if coordinates are already in the DataFrame (from step 2 validation)
         if "经度" in row and "纬度" in row:
             lng_val = row.get("经度")
             lat_val = row.get("纬度")
-            if pd.notna(lng_val) and pd.notna(lat_val):
+            if pd.notna(lng_val) and pd.notna(lat_val) and lng_val != 0.0 and lat_val != 0.0:
                 lng, lat = float(lng_val), float(lat_val)
-        elif "坐标" in row:
-            coord_str = str(row.get("坐标", "")).strip()
-            if coord_str and "," in coord_str:
-                parts = coord_str.split(",")
-                lng, lat = float(parts[0]), float(parts[1])
+                from_excel_count += 1
+                print(f"  ✓ [{from_excel_count}] {addr[:40]} -> {lat:.6f}, {lng:.6f} (from DataFrame)")
         
-        # If no coordinates in Excel, geocode the address
+        # If no coordinates in DataFrame, try geocoding
         if lng is None or lat is None or lng == 0.0 or lat == 0.0:
             try:
                 result = geocoder.geocode(addr)
                 if result:
                     lng, lat = result
                     geocode_count += 1
-                    print(f"  ✓ [{geocode_count}] {addr[:40]} -> {lat:.6f}, {lng:.6f}")
+                    print(f"  ✓ [{geocode_count}] {addr[:40]} -> {lat:.6f}, {lng:.6f} (geocoded)")
                 else:
                     print(f"  ✗ [{idx+1}] {addr[:40]} - Geocoding failed, using fallback")
                     # Fallback: use hash-based approximate coordinates
@@ -272,7 +293,8 @@ def build_config_for_planner(
             metadata={"address": addr}
         ))
     
-    print(f"\n[Geo] Geocoded {geocode_count}/{len(points)} points successfully")
+    print(f"\n[Geo] Summary: {geocode_count} geocoded, {from_excel_count} from DataFrame, {len(points)-geocode_count-from_excel_count} fallback")
+    print(f"[Geo] Total: {len(points)} points")
     
     # Print all points with their coordinates for debugging
     print("\n[Debug] All points with coordinates:")
@@ -543,27 +565,35 @@ def render_step2():
     if st.button("🔍 开始验证地址", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         status_text.text("正在调用高德 API 验证地址...")
         results = validate_addresses(df, progress_bar)
-        
+
         ok_results = [r for r in results if r["status"] == "OK"]
         fail_results = [r for r in results if r["status"] == "FAIL"]
-        
+
         # Check district match
         wrong_district = []
         for r in ok_results:
             if st.session_state.validate_district not in r.get("district", ""):
                 wrong_district.append(r)
-        
+
         st.session_state.validation_results = results
         st.session_state.ok_results = ok_results
         st.session_state.failed_addresses = fail_results
         st.session_state.wrong_district = wrong_district
         
+        # Create validated DataFrame with coordinates
+        validated_df = create_validated_dataframe(df, results)
+        st.session_state.validated_df = validated_df
+
         # Summary
         st.success("✅ 验证完成！")
         
+        # Show validated data preview
+        with st.expander("📋 验证后数据预览"):
+            st.dataframe(validated_df, use_container_width=True)
+
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("✅ 匹配成功", len(ok_results) - len(wrong_district))
