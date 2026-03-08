@@ -25,7 +25,9 @@ st.markdown("""
 <style>
     .main-header {font-size: 2.5rem; color: #1f77b4; margin-bottom: 1rem;}
     .sub-header {font-size: 1.2rem; color: #666; margin-bottom: 2rem;}
-    .step-box {background: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin: 1rem 0;}
+    .step-box {background: #1a1a2e; color: #ffffff; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.3); margin: 1rem 0;}
+    .step-box h3 {color: #ffffff !important;}
+    .step-box p {color: #cccccc !important;}
     .success-box {background: #d4edda; border-left: 4px solid #28a745; padding: 1rem; margin: 1rem 0;}
     .warning-box {background: #fff3cd; border-left: 4px solid #ffc107; padding: 1rem; margin: 1rem 0;}
     .error-box {background: #f8d7da; border-left: 4px solid #dc3545; padding: 1rem; margin: 1rem 0;}
@@ -51,6 +53,11 @@ st.markdown("""
     .step-indicator-pending {
         background: #4a4a4a !important;
         color: #888888;
+    }
+    
+    /* Streamlit 列背景覆盖 */
+    [data-testid="column"] {
+        background: transparent;
     }
 </style>
 """, unsafe_allow_html=True)
