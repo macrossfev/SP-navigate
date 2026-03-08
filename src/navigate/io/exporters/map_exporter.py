@@ -22,10 +22,11 @@ class MapExporter(BaseExporter):
         fmt_config: "ExportFormatConfig" = kwargs.get("format_config")
         img_w = fmt_config.image_width if fmt_config else 1200
         img_h = fmt_config.image_height if fmt_config else 800
-        output_format = fmt_config.format if fmt_config else "html"
 
         html_dir = os.path.join(output_dir, "html")
+        img_dir = os.path.join(output_dir, "images")
         os.makedirs(html_dir, exist_ok=True)
+        os.makedirs(img_dir, exist_ok=True)
 
         # Optional: get driving polylines from distance provider
         distance_provider = kwargs.get("distance_provider")
@@ -34,21 +35,18 @@ class MapExporter(BaseExporter):
         paths = []
         for dp in result.days:
             html_path = os.path.join(html_dir, f"day_{dp.day}.html")
+            png_path = os.path.join(img_dir, f"day_{dp.day}.png")
+            
             self._create_map(dp, html_path, img_w, img_h,
                              distance_provider, folium, DivIcon)
-
-            if output_format == "png":
-                img_dir = os.path.join(output_dir, "images")
-                os.makedirs(img_dir, exist_ok=True)
-                png_path = os.path.join(img_dir, f"day_{dp.day}.png")
-                self._screenshot(html_path, png_path, img_w, img_h)
-                paths.append(png_path)
-            else:
-                paths.append(html_path)
-
+            
+            # Generate PNG screenshot
+            self._screenshot(html_path, png_path, img_w, img_h)
+            
+            paths.append(html_path)
             print(f"  Day {dp.day} [{dp.point_count} pts] done")
 
-        print(f"[Map] Complete: {html_dir}")
+        print(f"[Map] Complete: HTML maps in {html_dir}, PNG images in {img_dir}")
         return html_dir
 
     def _create_map(self, dp, html_path, img_w, img_h,
@@ -208,13 +206,44 @@ class MapExporter(BaseExporter):
 
     @staticmethod
     def _screenshot(html_path: str, png_path: str, width: int, height: int):
+        """Take screenshot using headless Chromium."""
+        import subprocess
+        import os
+        
+        # Try multiple chromium paths
+        chromium_paths = [
+            "chromium",
+            "chromium-browser",
+            "/snap/bin/chromium",
+            "google-chrome",
+            "google-chrome-stable",
+        ]
+        
+        chromium_cmd = None
+        for cmd in chromium_paths:
+            try:
+                subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
+                chromium_cmd = cmd
+                break
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+        
+        if not chromium_cmd:
+            print(f"  ⚠ No Chromium found, skipping PNG generation")
+            return
+        
         cmd = [
-            "chromium", "--headless", "--no-sandbox",
+            chromium_cmd, "--headless", "--no-sandbox",
             "--disable-gpu", "--disable-software-rasterizer",
             f"--screenshot={png_path}", f"--window-size={width},{height}",
             "--virtual-time-budget=5000", f"file://{html_path}",
         ]
+        
         try:
             subprocess.run(cmd, capture_output=True, timeout=60)
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+            if os.path.exists(png_path):
+                print(f"  ✓ Screenshot saved: {png_path}")
+            else:
+                print(f"  ⚠ Screenshot failed for {html_path}")
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            print(f"  ⚠ Screenshot error: {e}")
