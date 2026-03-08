@@ -310,6 +310,17 @@ def render_step2():
             st.rerun()
         return
     
+    # Check if already validated and all passed
+    if st.session_state.get("all_addresses_validated", False) and st.session_state.get("validated_df") is not None:
+        st.success("✅ 所有地址已验证通过！")
+        if st.button("进入步骤 4: 生成规划 →", type="primary"):
+            st.session_state.step = 4
+            st.rerun()
+        if st.button("← 返回上一步"):
+            st.session_state.step = 1
+            st.rerun()
+        return
+    
     df = st.session_state.uploaded_df
     
     # Check if "地址" column exists
@@ -402,8 +413,10 @@ def render_step2():
                 st.rerun()
         else:
             st.success("🎉 所有地址验证通过！可以直接生成规划方案")
-            if st.button("生成规划方案 →"):
-                st.session_state.validated_df = df.copy()
+            # Set flag to skip re-validation
+            st.session_state.all_addresses_validated = True
+            st.session_state.validated_df = df.copy()
+            if st.button("生成规划方案 →", type="primary", key="go_to_step4"):
                 st.session_state.step = 4
                 st.rerun()
     

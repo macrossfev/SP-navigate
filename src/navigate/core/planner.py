@@ -144,8 +144,11 @@ class Planner:
     def _run_strategy(self, points: List[Point],
                       dist_matrix: DistanceMatrix) -> PlanResult:
         """Run the configured strategy."""
+        # Import all strategies to ensure they are registered
         from navigate.strategies import STRATEGIES
+        from navigate.strategies.tsp import TspStrategy
         from navigate.strategies.cluster import ClusterStrategy
+        from navigate.strategies.overnight import OvernightStrategy
 
         strategy_name = self.config.strategy.name
         strategy_cls = STRATEGIES.get(strategy_name)
@@ -156,6 +159,10 @@ class Planner:
         if strategy_name == "cluster":
             base_coord = self._get_base_coord()
             strategy = strategy_cls(self.config, base_coord=base_coord)
+        elif strategy_name == "overnight":
+            base_coord = self._get_base_coord()
+            bp_name = self.config.base_point.name or "公司"
+            strategy = strategy_cls(self.config, base_coord=base_coord, base_name=bp_name)
         else:
             strategy = strategy_cls(self.config)
 
