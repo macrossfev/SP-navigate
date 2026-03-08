@@ -292,6 +292,8 @@ def build_config_for_planner(
     avg_speed_kmh=35.0,
     dbscan_eps_km=5.0,
     dbscan_min_samples=3,
+    road_eps_km=8.0,
+    road_min_samples=3,
 ):
     """Build configuration for planner."""
     import sys
@@ -398,6 +400,8 @@ def build_config_for_planner(
         "outlier_threshold_km": outlier_threshold,
         "dbscan_eps_km": dbscan_eps_km,
         "dbscan_min_samples": dbscan_min_samples,
+        "road_network_eps_km": road_eps_km,
+        "road_network_min_samples": road_min_samples,
     }
 
     # Constraints
@@ -1050,14 +1054,15 @@ def render_step4():
 
         strategy = st.selectbox(
             "规划策略",
-            options=["overnight", "tsp", "cluster", "dbscan"],
+            options=["overnight", "tsp", "cluster", "dbscan", "road_network"],
             format_func=lambda x: {
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
                 "cluster": "📍 聚类分组 (质心/链式)",
-                "dbscan": "🔬 DBSCAN 密度聚类 (推荐)"
+                "dbscan": "🔬 DBSCAN 密度聚类",
+                "road_network": "🛣️ 道路网络聚类 (最准确)"
             }.get(x, x),
-            index=3  # Default to dbscan
+            index=4  # Default to road_network
         )
 
         st.divider()
@@ -1192,6 +1197,37 @@ def render_step4():
             )
             cluster_method = "dbscan"
             optimize_groups = True
+        
+        elif strategy == "road_network":
+            st.subheader("🛣️ 道路网络聚类配置")
+            st.info("💡 使用高德 API 获取真实驾驶距离，基于路网进行聚类（最准确）")
+            
+            road_eps_km = st.slider(
+                "邻域半径 (公里)",
+                1.0, 30.0, 8.0, 1.0,
+                key="road_eps",
+                help="基于驾驶距离的邻域半径"
+            )
+            road_min_samples = st.slider(
+                "最小点数",
+                2, 10, 3, 1,
+                key="road_min",
+                help="形成一个簇所需的最小点数"
+            )
+            
+            # Force enable Amap route for road network
+            use_amap_route = True
+            st.success("✅ 已自动启用高德 API 路径规划")
+            
+            st.warning("""
+            ⚠️ **重要提示**:
+            - API 调用次数：n² 次（n 为点位数量）
+            - 预估时间：10 个点约 1 分钟，50 个点约 20 分钟
+            - 请确保 API Key 配额充足
+            """)
+            
+            cluster_method = "road_network"
+            optimize_groups = True
         else:
             cluster_method = "centroid"
             optimize_groups = True
@@ -1283,6 +1319,15 @@ def render_step4():
                     dbscan_eps = dbscan_eps_km if strategy == "dbscan" else 5.0
                     dbscan_min = dbscan_min_samples if strategy == "dbscan" else 3
                     
+                    # Road Network 参数
+                    road_eps = road_eps_km if strategy == "road_network" else 8.0
+                    road_min = road_min_samples if strategy == "road_network" else 3
+                    
+                    # 道路网络策略强制启用高德 API
+                    if strategy == "road_network":
+                        use_amap_route = True
+                        st.info("ℹ️ 道路网络聚类使用高德 API 获取真实驾驶距离，规划时间较长，请耐心等待")
+                    
                     config = build_config_for_planner(
                         points_df=st.session_state.validated_df,
                         strategy=strategy,
@@ -1301,6 +1346,8 @@ def render_step4():
                         avg_speed_kmh=avg_speed_kmh,
                         dbscan_eps_km=dbscan_eps,
                         dbscan_min_samples=dbscan_min,
+                        road_eps_km=road_eps,
+                        road_min_samples=road_min,
                     )
 
                     result = run_planner(config)
