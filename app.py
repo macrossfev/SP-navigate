@@ -294,6 +294,9 @@ def build_config_for_planner(
     dbscan_min_samples=3,
     road_eps_km=8.0,
     road_min_samples=3,
+    area_threshold_km2=100.0,
+    area_min_points=3,
+    area_max_points=50,
 ):
     """Build configuration for planner."""
     import sys
@@ -402,6 +405,9 @@ def build_config_for_planner(
         "dbscan_min_samples": dbscan_min_samples,
         "road_network_eps_km": road_eps_km,
         "road_network_min_samples": road_min_samples,
+        "area_expansion_threshold_km2": area_threshold_km2,
+        "min_points_per_cluster": area_min_points,
+        "max_points_per_cluster": area_max_points,
     }
 
     # Constraints
@@ -1054,15 +1060,16 @@ def render_step4():
 
         strategy = st.selectbox(
             "规划策略",
-            options=["overnight", "tsp", "cluster", "dbscan", "road_network"],
+            options=["overnight", "tsp", "cluster", "dbscan", "road_network", "area_expansion"],
             format_func=lambda x: {
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
                 "cluster": "📍 聚类分组 (质心/链式)",
                 "dbscan": "🔬 DBSCAN 密度聚类",
-                "road_network": "🛣️ 道路网络聚类 (最准确)"
+                "road_network": "🛣️ 道路网络聚类 (最准确)",
+                "area_expansion": "⭕ 面积扩张聚类 (推荐)"
             }.get(x, x),
-            index=4  # Default to road_network
+            index=5  # Default to area_expansion
         )
 
         st.divider()
@@ -1228,6 +1235,40 @@ def render_step4():
             
             cluster_method = "road_network"
             optimize_groups = True
+        
+        elif strategy == "area_expansion":
+            st.subheader("⭕ 面积扩张聚类配置")
+            st.info("""
+            💡 **算法原理**:
+            1. 从种子点开始，像"画圆"一样向外扩张
+            2. 计算包含下一个点需要的面积增量
+            3. 如果面积增量 > 阈值 → 停止扩张
+            4. 自动形成大小不一的区域
+            
+            **适合场景**: 点位分布极不均匀，跨区域的大规模任务
+            """)
+            
+            area_threshold = st.slider(
+                "面积增量阈值 (平方公里)",
+                10.0, 500.0, 100.0, 10.0,
+                key="area_threshold",
+                help="当包含下一个点需要的面积增量超过此值时，停止扩张"
+            )
+            min_points = st.slider(
+                "每区域最小点数",
+                1, 10, 3, 1,
+                key="area_min",
+                help="每个区域最少包含的点数"
+            )
+            max_points = st.slider(
+                "每区域最大点数",
+                5, 200, 50, 5,
+                key="area_max",
+                help="每个区域最多包含的点数"
+            )
+            
+            cluster_method = "area_expansion"
+            optimize_groups = True
         else:
             cluster_method = "centroid"
             optimize_groups = True
@@ -1323,6 +1364,11 @@ def render_step4():
                     road_eps = road_eps_km if strategy == "road_network" else 8.0
                     road_min = road_min_samples if strategy == "road_network" else 3
                     
+                    # Area Expansion 参数
+                    area_thresh = area_threshold_km2 if strategy == "area_expansion" else 100.0
+                    area_min = area_min_points if strategy == "area_expansion" else 3
+                    area_max = area_max_points if strategy == "area_expansion" else 50
+                    
                     # 道路网络策略强制启用高德 API
                     if strategy == "road_network":
                         use_amap_route = True
@@ -1348,6 +1394,9 @@ def render_step4():
                         dbscan_min_samples=dbscan_min,
                         road_eps_km=road_eps,
                         road_min_samples=road_min,
+                        area_threshold_km2=area_thresh,
+                        area_min_points=area_min,
+                        area_max_points=area_max,
                     )
 
                     result = run_planner(config)
