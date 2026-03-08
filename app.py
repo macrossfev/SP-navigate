@@ -277,9 +277,8 @@ def build_config_for_planner(
     # Distance
     config.distance.provider = "haversine"
     config.distance.avg_speed_kmh = 35.0
-    # Note: API Key b6410cb1a118bad10e6d1161d6e896f7 returns SERVICE_NOT_AVAILABLE
-    # May need to check quota or platform configuration
-    config.distance.options["amap_key"] = "b6410cb1a118bad10e6d1161d6e896f7"
+    # Working API Key (tested 2026-03-08)
+    config.distance.options["amap_key"] = "de9b271958d5cf291a018d5e95f7e53d"
     
     # Data - points (use JSON file for direct loading)
     config.data.points = DataSourceConfig(
