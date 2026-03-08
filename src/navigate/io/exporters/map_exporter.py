@@ -36,13 +36,16 @@ class MapExporter(BaseExporter):
         for dp in result.days:
             html_path = os.path.join(html_dir, f"day_{dp.day}.html")
             png_path = os.path.join(img_dir, f"day_{dp.day}.png")
-            
+
             self._create_map(dp, html_path, img_w, img_h,
                              distance_provider, folium, DivIcon)
+
+            # Ensure image directory exists before screenshot
+            os.makedirs(os.path.dirname(png_path), exist_ok=True)
             
             # Generate PNG screenshot
             self._screenshot(html_path, png_path, img_w, img_h)
-            
+
             paths.append(html_path)
             print(f"  Day {dp.day} [{dp.point_count} pts] done")
 
@@ -232,23 +235,35 @@ class MapExporter(BaseExporter):
             print(f"  ⚠ No Chromium found, skipping PNG generation")
             return False
 
+        # Use --user-data-dir to avoid AppArmor issues with snap
         cmd = [
             chromium_cmd, "--headless", "--no-sandbox",
             "--disable-gpu", "--disable-software-rasterizer",
+            "--disable-dev-shm-usage", "--no-zygote",
+            "--run-all-compositor-stages-before-draw",
+            f"--user-data-dir=/tmp/chromium-{os.getpid()}",
             f"--screenshot={png_path}", f"--window-size={width},{height}",
             "--virtual-time-budget=5000", f"file://{html_path}",
         ]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(png_path), exist_ok=True)
+            
+            # Use absolute path for file:// URL
+            abs_png_path = os.path.abspath(png_path)
+            abs_html_path = os.path.abspath(html_path)
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             # Check if file exists and has content
-            if os.path.exists(png_path) and os.path.getsize(png_path) > 0:
-                print(f"  ✓ Screenshot saved: {png_path} ({os.path.getsize(png_path)} bytes)")
+            if os.path.exists(abs_png_path) and os.path.getsize(abs_png_path) > 0:
+                print(f"  ✓ Screenshot saved: {abs_png_path} ({os.path.getsize(abs_png_path)} bytes)")
                 return True
             else:
                 print(f"  ⚠ Screenshot failed for {html_path}")
                 if result.stderr:
-                    print(f"     Error: {result.stderr[:200]}")
+                    # Print last 200 chars of error
+                    print(f"     Error: {result.stderr[-200:]}")
                 return False
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             print(f"  ⚠ Screenshot error: {e}")
