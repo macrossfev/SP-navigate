@@ -198,6 +198,9 @@ def export_failed_addresses(failed, output_path):
 
 def merge_corrected_data(original_df, corrected_df):
     """Merge original data with corrected addresses, preserving coordinates."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    
     # Create mapping from corrected file
     correction_map = {}
     if "原始地址" in corrected_df.columns and "修正后地址" in corrected_df.columns:
