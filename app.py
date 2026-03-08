@@ -882,7 +882,17 @@ def display_pre_plan_results(pre_result):
                     )
                 ).add_to(m)
         
-        st.map(m)
+        # Display map using streamlit-folium
+        try:
+            from streamlit_folium import st_folium
+            st_folium(m, width=800, height=600)
+        except ImportError:
+            st.warning("⚠️ 需要安装 streamlit-folium: `pip install streamlit-folium`")
+            # Fallback: save and show as file
+            html_path = f"/tmp/map_{id(m)}.html"
+            m.save(html_path)
+            with open(html_path, "r", encoding="utf-8") as f:
+                st.components.v1.html(f.read(), height=600)
 
 
 # ============== Step 4 ==============
