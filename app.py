@@ -361,6 +361,7 @@ def run_planner(config):
                             print(f"    ✗ {pt.name[:40]} - failed")
                 else:
                     print(f"  ✗ Amap API test failed for first address")
+                    print(f"     Note: API Key may not be configured for Web API platform")
                     
             except Exception as e:
                 print(f"  ✗ Amap geocoding error: {e}")
@@ -369,6 +370,7 @@ def run_planner(config):
             if not geocode_success:
                 print("\n[Geo] ⚠️ Amap API unavailable, using approximate coordinates...")
                 print("        For accurate results, please check your API key configuration.")
+                print("        Error: USERKEY_PLAT_NOMATCH - API Key not configured for Web API")
                 
                 # Use Chongqing Changshou district center as base
                 BASE_LAT = 29.857
