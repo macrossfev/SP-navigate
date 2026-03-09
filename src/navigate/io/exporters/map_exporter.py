@@ -220,62 +220,76 @@ class MapExporter(BaseExporter):
 
     @staticmethod
     def _screenshot(html_path: str, png_path: str, width: int, height: int):
-        """Take screenshot using headless Chromium."""
-        import subprocess
+        """Take screenshot using Playwright (recommended) or Chromium."""
         import os
 
-        # Try multiple chromium paths
-        chromium_paths = [
-            "chromium",
-            "chromium-browser",
-            "/snap/bin/chromium",
-            "google-chrome",
-            "google-chrome-stable",
-        ]
-
-        chromium_cmd = None
-        for cmd in chromium_paths:
-            try:
-                subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
-                chromium_cmd = cmd
-                break
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                continue
-
-        if not chromium_cmd:
-            print(f"  ⚠ No Chromium found, skipping PNG generation")
-            return False
-
-        # Use --user-data-dir to avoid AppArmor issues with snap
-        cmd = [
-            chromium_cmd, "--headless", "--no-sandbox",
-            "--disable-gpu", "--disable-software-rasterizer",
-            "--disable-dev-shm-usage", "--no-zygote",
-            "--run-all-compositor-stages-before-draw",
-            f"--user-data-dir=/tmp/chromium-{os.getpid()}",
-            f"--screenshot={png_path}", f"--window-size={width},{height}",
-            "--virtual-time-budget=5000", f"file://{html_path}",
-        ]
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(png_path), exist_ok=True)
 
         try:
-            # Ensure output directory exists
-            os.makedirs(os.path.dirname(png_path), exist_ok=True)
+            # Try Playwright first (most reliable)
+            from playwright.sync_api import sync_playwright
             
-            # Use absolute path for file:// URL
-            abs_png_path = os.path.abspath(png_path)
-            abs_html_path = os.path.abspath(html_path)
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.set_viewport_size({"width": width, "height": height})
+                page.goto(f"file://{html_path}", wait_until="networkidle")
+                page.screenshot(path=png_path, full_page=False)
+                browser.close()
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            # Check if file exists and has content
-            if os.path.exists(abs_png_path) and os.path.getsize(abs_png_path) > 0:
-                print(f"  ✓ Screenshot saved: {abs_png_path} ({os.path.getsize(abs_png_path)} bytes)")
+            if os.path.exists(png_path) and os.path.getsize(png_path) > 0:
+                print(f"  ✓ Screenshot saved (Playwright): {png_path} ({os.path.getsize(png_path)} bytes)")
                 return True
             else:
-                print(f"  ⚠ Screenshot failed for {html_path}")
-                if result.stderr:
-                    # Print last 200 chars of error
-                    print(f"     Error: {result.stderr[-200:]}")
+                print(f"  ⚠ Playwright screenshot empty")
                 return False
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                
+        except ImportError:
+            print(f"  ⚠ Playwright not available, trying Chromium...")
+        except Exception as e:
+            print(f"  ⚠ Playwright failed: {e}, trying Chromium...")
+        
+        # Fallback to Chromium (may fail on some systems)
+        try:
+            import subprocess
+            
+            chromium_paths = [
+                "chromium",
+                "chromium-browser", 
+                "/snap/bin/chromium",
+                "google-chrome",
+                "google-chrome-stable",
+            ]
+
+            chromium_cmd = None
+            for cmd in chromium_paths:
+                try:
+                    subprocess.run([cmd, "--version"], capture_output=True, timeout=5)
+                    chromium_cmd = cmd
+                    break
+                except:
+                    continue
+
+            if not chromium_cmd:
+                print(f"  ⚠ No Chromium found")
+                return False
+
+            cmd = [
+                chromium_cmd, "--headless", "--no-sandbox",
+                f"--screenshot={png_path}", f"--window-size={width},{height}",
+                "--virtual-time-budget=5000", f"file://{html_path}",
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            
+            if os.path.exists(png_path) and os.path.getsize(png_path) > 0:
+                print(f"  ✓ Screenshot saved (Chromium): {png_path} ({os.path.getsize(png_path)} bytes)")
+                return True
+            else:
+                print(f"  ⚠ Chromium screenshot failed")
+                return False
+                
+        except Exception as e:
             print(f"  ⚠ Screenshot error: {e}")
             return False
