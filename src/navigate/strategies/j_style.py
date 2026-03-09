@@ -95,40 +95,44 @@ class JStyleStrategy(BaseStrategy):
         print(f"\n[Step 4] Optimizing (max {max_iterations} iterations)...")
         for iteration in range(max_iterations):
             improved = False
-            
+
             # Try moving each point to neighboring clusters
             for i in range(n):
                 current_cluster = labels[i]
-                
+
                 # Check if we can move this point (maintain min constraint)
                 if sum(labels == current_cluster) <= min_points_per_cluster:
                     continue
-                
+
                 # Try moving to each other cluster
                 best_cluster = current_cluster
                 best_area_reduction = 0
-                
+
                 for k in range(k_clusters):
                     if k == current_cluster:
                         continue
-                    
+
+                    # Check max constraint for target cluster
+                    if sum(labels == k) >= max_points_per_cluster:
+                        continue
+
                     # Temporarily move point
                     test_labels = labels.copy()
                     test_labels[i] = k
-                    
+
                     # Check constraint
                     if sum(test_labels == k) < min_points_per_cluster:
                         continue
-                    
+
                     # Compute new total area
                     test_area = self._compute_total_area(coords, test_labels, k_clusters)
                     current_area = self._compute_total_area(coords, labels, k_clusters)
-                    
+
                     area_reduction = current_area - test_area
                     if area_reduction > best_area_reduction:
                         best_area_reduction = area_reduction
                         best_cluster = k
-                
+
                 # Apply best move
                 if best_cluster != current_cluster and best_area_reduction > 0.01:
                     labels[i] = best_cluster
