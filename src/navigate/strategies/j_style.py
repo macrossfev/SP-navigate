@@ -53,8 +53,9 @@ class JStyleStrategy(BaseStrategy):
         min_points_per_cluster = self.config.strategy.options.get("j_style_min_points", 10)
         max_iterations = self.config.strategy.options.get("j_style_max_iterations", 50)
         
-        # Adjust k if needed
-        k_clusters = min(k_clusters, n // min_points_per_cluster)
+        # Adjust k if needed (support min_points=1)
+        min_points_per_cluster = max(1, min_points_per_cluster)
+        k_clusters = min(k_clusters, n // min_points_per_cluster) if min_points_per_cluster > 0 else k_clusters
         k_clusters = max(1, k_clusters)
         
         print(f"  K clusters: {k_clusters}")

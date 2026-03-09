@@ -1325,7 +1325,7 @@ def render_step4():
             )
             j_min_points = st.slider(
                 "每簇最小点数 (m)",
-                3, 50, 10, 1,
+                1, 50, 10, 1,  # 最小值从 3 改为 1
                 key="j_min",
                 help="每个簇（区域）最少包含的点数"
             )
