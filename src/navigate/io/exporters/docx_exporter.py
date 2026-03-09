@@ -194,13 +194,28 @@ class DocxExporter(BaseExporter):
                         print(f"    ✗ Image not found or empty")
 
                 if not img_found:
-                    # Add note if image not available
-                    ip = doc.add_paragraph()
-                    ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = ip.add_run()
-                    run.add_text(f"⚠️ 地图图片未找到：{img_dir}/day_{d.day}.png")
-                    run.font.size = Pt(9)
-                    run.font.color.rgb = RGBColor(255, 128, 0)
+                    # Fallback: Add link to HTML map
+                    html_path = os.path.join(output_dir, "html", f"day_{d.day}.html")
+                    if os.path.exists(html_path):
+                        ip = doc.add_paragraph()
+                        ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run = ip.add_run()
+                        run.add_text(f"🗺️ 第{d.day}天 交互式地图：")
+                        run.font.size = Pt(9)
+                        run.font.color.rgb = RGBColor(0, 128, 255)
+                        
+                        link_run = ip.add_run()
+                        link_run.add_text(html_path)
+                        link_run.style = "Hyperlink"
+                        print(f"  Added HTML map link: {html_path}")
+                    else:
+                        # No image or HTML
+                        ip = doc.add_paragraph()
+                        ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run = ip.add_run()
+                        run.add_text(f"⚠️ 地图不可用")
+                        run.font.size = Pt(9)
+                        run.font.color.rgb = RGBColor(255, 128, 0)
 
             doc.add_paragraph()
 
