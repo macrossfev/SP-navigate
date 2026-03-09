@@ -563,6 +563,7 @@ def run_planner(config):
         distance_provider = SimpleDistanceProvider()
 
         # First generate HTML maps with PNG screenshots
+        print(f"\n[Export] Generating maps and PNG screenshots...")
         map_exporter = EXPORTERS["map"](config)
         # Create a format config for map exporter to enable PNG generation
         from navigate.core.config import ExportFormatConfig
@@ -570,11 +571,13 @@ def run_planner(config):
         map_exporter.export(result, output_dir, format_config=map_format, distance_provider=distance_provider)
 
         # Then generate other formats
+        print(f"\n[Export] Generating other formats...")
         for fmt in config.export.formats:
             if fmt.type == "map":
                 continue  # Already handled
             exporter_cls = EXPORTERS.get(fmt.type)
             if exporter_cls:
+                print(f"  Exporting {fmt.type}...")
                 exporter = exporter_cls(config)
                 exporter.export(result, output_dir, format_config=fmt, distance_provider=distance_provider)
 

@@ -147,6 +147,10 @@ class DocxExporter(BaseExporter):
         detail_fields = (fmt_config.detail_fields
                          if fmt_config and fmt_config.detail_fields else [])
         img_dir = os.path.join(output_dir, "images")
+        
+        print(f"\n[DOCX] Exporting Word report to: {path}")
+        print(f"  Image directory: {img_dir}")
+        print(f"  Include maps: {fmt_config.include_maps if fmt_config else False}")
 
         for d in result.days:
             doc.add_page_break()
@@ -164,22 +168,39 @@ class DocxExporter(BaseExporter):
                 img_found = False
                 for pattern in [f"day_{d.day}.png", f"Day{d.day}.png"]:
                     img_path = os.path.join(img_dir, pattern)
+                    print(f"  Checking image: {img_path}")
                     if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
-                        ip = doc.add_paragraph()
-                        ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        run = ip.add_run()
-                        run.add_picture(img_path, width=Cm(22))
-                        img_found = True
-                        break
-                
+                        print(f"    ✓ Image found, size: {os.path.getsize(img_path)} bytes")
+                        try:
+                            ip = doc.add_paragraph()
+                            ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = ip.add_run()
+                            run.add_picture(img_path, width=Cm(20))
+                            img_found = True
+                            
+                            # Add caption
+                            caption = doc.add_paragraph()
+                            caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            caption_run = caption.add_run()
+                            caption_run.add_text(f"第{d.day}天 路线示意图")
+                            caption_run.font.size = Pt(9)
+                            caption_run.font.color.rgb = RGBColor(128, 128, 128)
+                            print(f"    ✓ Image added to Word")
+                            break
+                        except Exception as e:
+                            print(f"    ✗ Failed to add image: {e}")
+                            img_found = False
+                    else:
+                        print(f"    ✗ Image not found or empty")
+
                 if not img_found:
                     # Add note if image not available
                     ip = doc.add_paragraph()
                     ip.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run = ip.add_run()
-                    run.add_text(f"（地图图片：请查看 {img_dir}/day_{d.day}.png）")
+                    run.add_text(f"⚠️ 地图图片未找到：{img_dir}/day_{d.day}.png")
                     run.font.size = Pt(9)
-                    run.font.color.rgb = RGBColor(128, 128, 128)
+                    run.font.color.rgb = RGBColor(255, 128, 0)
 
             doc.add_paragraph()
 
