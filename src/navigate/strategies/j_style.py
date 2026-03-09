@@ -175,7 +175,7 @@ class JStyleStrategy(BaseStrategy):
             
             # Get MEC info
             center, radius = circles[cluster_idx]
-            
+
             days.append(DayPlan(
                 day=cluster_idx + 1,
                 points=optimized_points,
@@ -183,11 +183,6 @@ class JStyleStrategy(BaseStrategy):
                 drive_time_min=round(drive_time_s / 60, 1),
                 stop_time_min=stop_min,
                 total_time_hours=round(total_s / 3600, 1),
-                metadata={
-                    "mec_center": center.tolist(),
-                    "mec_radius_km": round(radius, 2),
-                    "mec_area_km2": round(np.pi * radius**2, 2),
-                }
             ))
         
         return PlanResult(
