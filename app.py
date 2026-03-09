@@ -925,6 +925,7 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
         "max_points_per_cluster": area_max_points,
         "j_style_k_clusters": j_k_clusters,
         "j_style_min_points": j_min_points,
+        "j_style_max_points": j_max_points,  # ← 关键：传递最大点数约束
         "j_style_max_iterations": j_max_iter,
     })
 
