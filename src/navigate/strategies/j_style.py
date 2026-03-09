@@ -209,9 +209,9 @@ class JStyleStrategy(BaseStrategy):
         n = len(coords)
         labels = labels.copy()
 
-        for _ in range(100):  # Max iterations
+        for iteration in range(100):  # Max iterations
             improved = False
-            
+
             # Step 1: Find clusters violating min constraint
             violating_min = [k for k in range(k_clusters) if sum(labels == k) < min_points]
 
@@ -234,36 +234,61 @@ class JStyleStrategy(BaseStrategy):
                     for i in candidate_indices[:points_to_move]:
                         labels[i] = k
                         improved = True
-            
+
             # Step 2: Find clusters violating max constraint
             violating_max = [k for k in range(k_clusters) if sum(labels == k) > max_points]
-            
+
             if violating_max:
-                # For each violating cluster, move excess points to smallest cluster
+                # For each violating cluster, move excess points to ANY cluster that can accept
                 for k in violating_max:
-                    smallest_k = min(range(k_clusters), key=lambda x: sum(labels == x))
-                    if smallest_k == k:
-                        continue
-                    
-                    # Check if smallest cluster can accept more points
-                    if sum(labels == smallest_k) >= max_points:
-                        continue
-                    
                     # Find points furthest from cluster center
                     cluster_center = coords[labels == k].mean(axis=0)
                     candidate_indices = [i for i in range(n) if labels[i] == k]
-                    
+
                     # Sort by distance to cluster center (furthest first)
                     candidate_indices.sort(key=lambda i: np.sum((coords[i] - cluster_center)**2), reverse=True)
-                    
-                    # Move excess points
+
+                    # Move excess points one by one
                     excess = sum(labels == k) - max_points
-                    points_to_move = min(excess, max_points - sum(labels == smallest_k), len(candidate_indices))
-                    for i in candidate_indices[:points_to_move]:
-                        labels[i] = smallest_k
-                        improved = True
-            
+                    for idx_to_move in candidate_indices[:excess]:
+                        # Find best target cluster (can accept point and closest)
+                        point_coord = coords[idx_to_move]
+                        best_target = None
+                        best_distance = float('inf')
+
+                        for target_k in range(k_clusters):
+                            if target_k == k:
+                                continue
+                            # Check if target can accept
+                            if sum(labels == target_k) >= max_points:
+                                continue
+
+                            # Calculate distance to target center
+                            target_center = coords[labels == target_k].mean(axis=0) if sum(labels == target_k) > 0 else point_coord
+                            distance = np.sum((point_coord - target_center)**2)
+
+                            if distance < best_distance:
+                                best_distance = distance
+                                best_target = target_k
+
+                        # Move to best target
+                        if best_target is not None:
+                            labels[idx_to_move] = best_target
+                            improved = True
+
+            print(f"  Iteration {iteration + 1}: improved={improved}, cluster_sizes={[sum(labels == k) for k in range(k_clusters)]}")
+
             if not improved:
+                # Check if all constraints are satisfied
+                final_sizes = [sum(labels == k) for k in range(k_clusters)]
+                violating_final_min = [k for k in range(k_clusters) if final_sizes[k] < min_points]
+                violating_final_max = [k for k in range(k_clusters) if final_sizes[k] > max_points]
+
+                if violating_final_min or violating_final_max:
+                    print(f"  Warning: Could not satisfy all constraints")
+                    print(f"    Final sizes: {final_sizes}")
+                    print(f"    Min violations: {violating_final_min}")
+                    print(f"    Max violations: {violating_final_max}")
                 break
 
         return labels
