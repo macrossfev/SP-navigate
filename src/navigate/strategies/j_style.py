@@ -8,6 +8,7 @@ J-Style Algorithm: Constrained Clustering with Minimum Enclosing Circle Optimiza
 from __future__ import annotations
 
 import random
+import numpy as np
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from .base import BaseStrategy
@@ -40,10 +41,9 @@ class JStyleStrategy(BaseStrategy):
     def plan(self, points: List["Point"],
              dist_matrix: "DistanceMatrix") -> PlanResult:
         try:
-            import numpy as np
             from sklearn.cluster import KMeans
         except ImportError:
-            raise ImportError("J-Style strategy requires scikit-learn and numpy")
+            raise ImportError("J-Style strategy requires scikit-learn")
         
         n = len(points)
         print(f"\n[J-Style Algorithm] {n} points")
@@ -276,15 +276,14 @@ class JStyleStrategy(BaseStrategy):
     
     def _compute_total_area(self, coords, labels, k_clusters):
         """Compute total MEC area for all clusters."""
-        import numpy as np
         total_area = 0
-        
+
         for k in range(k_clusters):
             cluster_points = coords[labels == k]
             if len(cluster_points) > 0:
                 _, radius = self._minimum_enclosing_circle(cluster_points)
                 total_area += np.pi * radius**2
-        
+
         return total_area
     
     def _optimize_order(self, indices: List[int], dist_matrix: List[List[float]]) -> List[int]:
