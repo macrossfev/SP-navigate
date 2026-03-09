@@ -73,9 +73,18 @@ class AreaExpansionStrategy(BaseStrategy):
                 if not unassigned:
                     break
                 
+                # Calculate current area (handle 1-2 points specially)
                 current_coords = coords[current_cluster]
-                current_hull = ConvexHull(current_coords)
-                current_area = current_hull.volume  # In 2D, this is area
+                if len(current_cluster) >= 3:
+                    current_hull = ConvexHull(current_coords)
+                    current_area = current_hull.volume  # In 2D, this is area
+                elif len(current_cluster) == 2:
+                    # For 2 points, use squared distance as "area"
+                    d = np.sqrt(np.sum((current_coords[0] - current_coords[1])**2))
+                    current_area = d ** 2
+                else:
+                    # For 1 point, area is 0
+                    current_area = 0
                 
                 # Try to add nearest point
                 best_candidate = None
@@ -87,14 +96,21 @@ class AreaExpansionStrategy(BaseStrategy):
                     test_coords = coords[test_cluster]
                     
                     try:
-                        test_hull = ConvexHull(test_coords)
-                        test_area = test_hull.volume
+                        if len(test_cluster) >= 3:
+                            test_hull = ConvexHull(test_coords)
+                            test_area = test_hull.volume
+                        elif len(test_cluster) == 2:
+                            d = np.sqrt(np.sum((test_coords[0] - test_coords[1])**2))
+                            test_area = d ** 2
+                        else:
+                            test_area = 0
+                        
                         increment = test_area - current_area
                         
                         if increment < best_increment:
                             best_increment = increment
                             best_candidate = candidate_idx
-                    except:
+                    except Exception as e:
                         # ConvexHull failed (e.g., collinear points)
                         continue
                 
