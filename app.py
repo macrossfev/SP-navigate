@@ -1366,9 +1366,9 @@ def render_step4():
                         outlier_threshold=outlier_threshold_km if enable_outlier else 0.0,
                         dbscan_eps_km=dbscan_eps_km if strategy == "dbscan" else 5.0,
                         dbscan_min_samples=dbscan_min_samples if strategy == "dbscan" else 3,
-                        area_threshold_km2=area_threshold_km2 if strategy == "area_expansion" else 100.0,
-                        area_min_points=area_min_points if strategy == "area_expansion" else 3,
-                        area_max_points=area_max_points if strategy == "area_expansion" else 50,
+                        area_threshold_km2=area_threshold if strategy == "area_expansion" else 100.0,
+                        area_min_points=min_points if strategy == "area_expansion" else 3,
+                        area_max_points=max_points if strategy == "area_expansion" else 50,
                     )
                     st.session_state.pre_plan_result = pre_result
                     st.rerun()
