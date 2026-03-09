@@ -47,19 +47,22 @@ class JStyleStrategy(BaseStrategy):
         
         n = len(points)
         print(f"\n[J-Style Algorithm] {n} points")
-        
+
         # Get parameters
         k_clusters = self.config.strategy.options.get("j_style_k_clusters", 5)
         min_points_per_cluster = self.config.strategy.options.get("j_style_min_points", 10)
+        max_points_per_cluster = self.config.strategy.options.get("j_style_max_points", 50)
         max_iterations = self.config.strategy.options.get("j_style_max_iterations", 50)
-        
+
         # Adjust k if needed (support min_points=1)
         min_points_per_cluster = max(1, min_points_per_cluster)
+        max_points_per_cluster = max(min_points_per_cluster, max_points_per_cluster)
         k_clusters = min(k_clusters, n // min_points_per_cluster) if min_points_per_cluster > 0 else k_clusters
         k_clusters = max(1, k_clusters)
-        
+
         print(f"  K clusters: {k_clusters}")
         print(f"  Min points per cluster: {min_points_per_cluster}")
+        print(f"  Max points per cluster: {max_points_per_cluster}")
         print(f"  Max iterations: {max_iterations}")
         
         # Convert points to numpy array
@@ -70,9 +73,9 @@ class JStyleStrategy(BaseStrategy):
         kmeans = KMeans(n_clusters=k_clusters, init='k-means++', n_init=10, random_state=42)
         labels = kmeans.fit_predict(coords)
         
-        # Step 2: Enforce minimum points constraint
-        print("\n[Step 2] Enforcing minimum points constraint...")
-        labels = self._enforce_min_constraint(labels, coords, k_clusters, min_points_per_cluster)
+        # Step 2: Enforce minimum and maximum points constraint
+        print("\n[Step 2] Enforcing min/max points constraint...")
+        labels = self._enforce_min_max_constraint(labels, coords, k_clusters, min_points_per_cluster, max_points_per_cluster)
         
         # Step 3: Compute initial MEC for each cluster
         print("\n[Step 3] Computing Minimum Enclosing Circles...")
@@ -197,36 +200,68 @@ class JStyleStrategy(BaseStrategy):
             }
         )
     
-    def _enforce_min_constraint(self, labels, coords, k_clusters, min_points):
-        """Enforce minimum points per cluster constraint."""
+    def _enforce_min_max_constraint(self, labels, coords, k_clusters, min_points, max_points):
+        """Enforce minimum and maximum points per cluster constraint."""
         n = len(coords)
         labels = labels.copy()
-        
+
         for _ in range(100):  # Max iterations
-            # Find clusters violating constraint
-            violating = [k for k in range(k_clusters) if sum(labels == k) < min_points]
+            improved = False
             
-            if not violating:
+            # Step 1: Find clusters violating min constraint
+            violating_min = [k for k in range(k_clusters) if sum(labels == k) < min_points]
+
+            if violating_min:
+                # For each violating cluster, steal points from largest cluster
+                for k in violating_min:
+                    largest_k = max(range(k_clusters), key=lambda x: sum(labels == x))
+                    if largest_k == k:
+                        continue
+
+                    # Find points closest to violating cluster center
+                    cluster_center = coords[labels == k].mean(axis=0) if sum(labels == k) > 0 else coords[labels == largest_k].mean(axis=0)
+                    candidate_indices = [i for i in range(n) if labels[i] == largest_k]
+
+                    # Sort by distance to violating cluster center
+                    candidate_indices.sort(key=lambda i: np.sum((coords[i] - cluster_center)**2))
+
+                    # Move points
+                    points_to_move = min(min_points - sum(labels == k), len(candidate_indices))
+                    for i in candidate_indices[:points_to_move]:
+                        labels[i] = k
+                        improved = True
+            
+            # Step 2: Find clusters violating max constraint
+            violating_max = [k for k in range(k_clusters) if sum(labels == k) > max_points]
+            
+            if violating_max:
+                # For each violating cluster, move excess points to smallest cluster
+                for k in violating_max:
+                    smallest_k = min(range(k_clusters), key=lambda x: sum(labels == x))
+                    if smallest_k == k:
+                        continue
+                    
+                    # Check if smallest cluster can accept more points
+                    if sum(labels == smallest_k) >= max_points:
+                        continue
+                    
+                    # Find points furthest from cluster center
+                    cluster_center = coords[labels == k].mean(axis=0)
+                    candidate_indices = [i for i in range(n) if labels[i] == k]
+                    
+                    # Sort by distance to cluster center (furthest first)
+                    candidate_indices.sort(key=lambda i: np.sum((coords[i] - cluster_center)**2), reverse=True)
+                    
+                    # Move excess points
+                    excess = sum(labels == k) - max_points
+                    points_to_move = min(excess, max_points - sum(labels == smallest_k), len(candidate_indices))
+                    for i in candidate_indices[:points_to_move]:
+                        labels[i] = smallest_k
+                        improved = True
+            
+            if not improved:
                 break
-            
-            # For each violating cluster, steal points from largest cluster
-            for k in violating:
-                largest_k = max(range(k_clusters), key=lambda x: sum(labels == x))
-                if largest_k == k:
-                    continue
-                
-                # Find points closest to violating cluster center
-                cluster_center = coords[labels == k].mean(axis=0) if sum(labels == k) > 0 else coords[labels == largest_k].mean(axis=0)
-                candidate_indices = [i for i in range(n) if labels[i] == largest_k]
-                
-                # Sort by distance to violating cluster center
-                candidate_indices.sort(key=lambda i: np.sum((coords[i] - cluster_center)**2))
-                
-                # Move points
-                points_to_move = min_points - sum(labels == k)
-                for i in candidate_indices[:points_to_move]:
-                    labels[i] = k
-        
+
         return labels
     
     def _minimum_enclosing_circle(self, points):

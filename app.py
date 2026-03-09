@@ -299,6 +299,7 @@ def build_config_for_planner(
     area_max_points=50,
     j_k_clusters=5,
     j_min_points=10,
+    j_max_points=50,
     j_max_iter=50,
 ):
     """Build configuration for planner."""
@@ -413,6 +414,7 @@ def build_config_for_planner(
         "max_points_per_cluster": area_max_points,
         "j_style_k_clusters": j_k_clusters,
         "j_style_min_points": j_min_points,
+        "j_style_max_points": j_max_points,
         "j_style_max_iterations": j_max_iter,
     }
 
@@ -868,7 +870,7 @@ def render_step3():
 def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="centroid", outlier_threshold=5.0,
                       dbscan_eps_km=5.0, dbscan_min_samples=3,
                       area_threshold_km2=100.0, area_min_points=3, area_max_points=50,
-                      j_k_clusters=5, j_min_points=10, j_max_iter=50):
+                      j_k_clusters=5, j_min_points=10, j_max_points=50, j_max_iter=50):
     """Generate pre-planning preview with clustering and visualization."""
     import sys
     import numpy as np
@@ -1325,9 +1327,15 @@ def render_step4():
             )
             j_min_points = st.slider(
                 "每簇最小点数 (m)",
-                1, 50, 10, 1,  # 最小值从 3 改为 1
+                1, 50, 10, 1,
                 key="j_min",
                 help="每个簇（区域）最少包含的点数"
+            )
+            j_max_points = st.slider(
+                "每簇最大点数",
+                j_min_points, 100, 50, 1,  # 最小值为 j_min_points
+                key="j_max",
+                help="每个簇（区域）最多包含的点数"
             )
             j_max_iter = st.slider(
                 "最大迭代次数",
@@ -1422,6 +1430,7 @@ def render_step4():
                         area_max_points=max_points if strategy == "area_expansion" else 50,
                         j_k_clusters=j_k_clusters if strategy == "j_style" else 5,
                         j_min_points=j_min_points if strategy == "j_style" else 10,
+                        j_max_points=j_max_points if strategy == "j_style" else 50,
                         j_max_iter=j_max_iter if strategy == "j_style" else 50,
                     )
                     st.session_state.pre_plan_result = pre_result
