@@ -297,6 +297,9 @@ def build_config_for_planner(
     area_threshold_km2=100.0,
     area_min_points=3,
     area_max_points=50,
+    j_k_clusters=5,
+    j_min_points=10,
+    j_max_iter=50,
 ):
     """Build configuration for planner."""
     import sys
@@ -408,6 +411,9 @@ def build_config_for_planner(
         "area_expansion_threshold_km2": area_threshold_km2,
         "min_points_per_cluster": area_min_points,
         "max_points_per_cluster": area_max_points,
+        "j_style_k_clusters": j_k_clusters,
+        "j_style_min_points": j_min_points,
+        "j_style_max_iterations": j_max_iter,
     }
 
     # Constraints
@@ -861,7 +867,8 @@ def render_step3():
 
 def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="centroid", outlier_threshold=5.0,
                       dbscan_eps_km=5.0, dbscan_min_samples=3,
-                      area_threshold_km2=100.0, area_min_points=3, area_max_points=50):
+                      area_threshold_km2=100.0, area_min_points=3, area_max_points=50,
+                      j_k_clusters=5, j_min_points=10, j_max_iter=50):
     """Generate pre-planning preview with clustering and visualization."""
     import sys
     sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -910,6 +917,9 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
         "area_expansion_threshold_km2": area_threshold_km2,
         "min_points_per_cluster": area_min_points,
         "max_points_per_cluster": area_max_points,
+        "j_style_k_clusters": j_k_clusters,
+        "j_style_min_points": j_min_points,
+        "j_style_max_iterations": j_max_iter,
     })
 
     # Run strategy based on selection
@@ -919,6 +929,9 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
     elif strategy == "area_expansion":
         from navigate.strategies.area_expansion import AreaExpansionStrategy
         strategy_instance = AreaExpansionStrategy(config)
+    elif strategy == "j_style":
+        from navigate.strategies.j_style import JStyleStrategy
+        strategy_instance = JStyleStrategy(config)
     else:
         # Default to cluster
         from navigate.strategies.cluster import ClusterStrategy
@@ -1078,16 +1091,17 @@ def render_step4():
 
         strategy = st.selectbox(
             "规划策略",
-            options=["overnight", "tsp", "cluster", "dbscan", "road_network", "area_expansion"],
+            options=["overnight", "tsp", "cluster", "dbscan", "road_network", "area_expansion", "j_style"],
             format_func=lambda x: {
                 "overnight": "🏨 隔夜住宿 (混合模式)",
                 "tsp": "🚗 单日往返 (TSP)",
                 "cluster": "📍 聚类分组 (质心/链式)",
                 "dbscan": "🔬 DBSCAN 密度聚类",
                 "road_network": "🛣️ 道路网络聚类 (最准确)",
-                "area_expansion": "⭕ 面积扩张聚类 (推荐)"
+                "area_expansion": "⭕ 面积扩张聚类 (推荐)",
+                "j_style": "🔷 J 式算法 (约束聚类+MEC)"
             }.get(x, x),
-            index=5  # Default to area_expansion
+            index=6  # Default to j_style
         )
 
         st.divider()
@@ -1287,6 +1301,42 @@ def render_step4():
             
             cluster_method = "area_expansion"
             optimize_groups = True
+        
+        elif strategy == "j_style":
+            st.subheader("🔷 J 式算法配置")
+            st.info("""
+            💡 **算法原理** (约束聚类 + 最小包围圆):
+            1. 固定 K 个簇，使用 K-Means++ 初始化
+            2. 强制每个簇至少包含 m 个点
+            3. 计算每个簇的最小包围圆 (MEC)
+            4. 迭代优化，最小化所有 MEC 面积之和
+            
+            **学术表述**: 带基数约束的 K-聚类优化问题，目标函数为各簇最小包围圆面积之和最小
+            
+            **适合场景**: 需要固定区域数量，每个区域点数均匀的場景
+            """)
+            
+            j_k_clusters = st.slider(
+                "固定簇数量 (K)",
+                2, 20, 5, 1,
+                key="j_k",
+                help="固定将点位分为 K 个簇（区域）"
+            )
+            j_min_points = st.slider(
+                "每簇最小点数 (m)",
+                3, 50, 10, 1,
+                key="j_min",
+                help="每个簇（区域）最少包含的点数"
+            )
+            j_max_iter = st.slider(
+                "最大迭代次数",
+                10, 200, 50, 10,
+                key="j_iter",
+                help="优化算法的最大迭代次数"
+            )
+            
+            cluster_method = "j_style"
+            optimize_groups = True
         else:
             cluster_method = "centroid"
             optimize_groups = True
@@ -1369,6 +1419,9 @@ def render_step4():
                         area_threshold_km2=area_threshold if strategy == "area_expansion" else 100.0,
                         area_min_points=min_points if strategy == "area_expansion" else 3,
                         area_max_points=max_points if strategy == "area_expansion" else 50,
+                        j_k_clusters=j_k_clusters if strategy == "j_style" else 5,
+                        j_min_points=j_min_points if strategy == "j_style" else 10,
+                        j_max_iter=j_max_iter if strategy == "j_style" else 50,
                     )
                     st.session_state.pre_plan_result = pre_result
                     st.rerun()

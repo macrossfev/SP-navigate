@@ -1,0 +1,305 @@
+"""
+J-Style Algorithm: Constrained Clustering with Minimum Enclosing Circle Optimization
+
+固定圆数量、单圆最小点数约束下，以总面积最小为目标的约束聚类 + 最小包围圆组合优化算法
+
+学术表述：带基数约束（每个簇大小≥m）的 K-聚类优化问题，目标函数为各簇最小包围圆面积之和最小
+"""
+from __future__ import annotations
+
+import random
+from typing import List, Optional, Tuple, TYPE_CHECKING
+
+from .base import BaseStrategy
+from .registry import register
+from ..core.models import DayPlan, PlanResult
+
+if TYPE_CHECKING:
+    from ..core.models import Point, DistanceMatrix
+    from ..core.config import NavigateConfig
+
+
+@register("j_style")
+class JStyleStrategy(BaseStrategy):
+    """
+    J-Style Constrained Clustering with Minimum Enclosing Circle
+    
+    Algorithm:
+    1. Initialize K clusters using K-Means++
+    2. Enforce minimum points constraint (m points per cluster)
+    3. Compute Minimum Enclosing Circle (MEC) for each cluster
+    4. Optimize: minimize sum of MEC areas
+    5. Iteratively reassign points to reduce total area
+    """
+    
+    name = "j_style"
+    
+    def __init__(self, config: "NavigateConfig"):
+        super().__init__(config)
+    
+    def plan(self, points: List["Point"],
+             dist_matrix: "DistanceMatrix") -> PlanResult:
+        try:
+            import numpy as np
+            from sklearn.cluster import KMeans
+        except ImportError:
+            raise ImportError("J-Style strategy requires scikit-learn and numpy")
+        
+        n = len(points)
+        print(f"\n[J-Style Algorithm] {n} points")
+        
+        # Get parameters
+        k_clusters = self.config.strategy.options.get("j_style_k_clusters", 5)
+        min_points_per_cluster = self.config.strategy.options.get("j_style_min_points", 10)
+        max_iterations = self.config.strategy.options.get("j_style_max_iterations", 50)
+        
+        # Adjust k if needed
+        k_clusters = min(k_clusters, n // min_points_per_cluster)
+        k_clusters = max(1, k_clusters)
+        
+        print(f"  K clusters: {k_clusters}")
+        print(f"  Min points per cluster: {min_points_per_cluster}")
+        print(f"  Max iterations: {max_iterations}")
+        
+        # Convert points to numpy array
+        coords = np.array([[p.lat, p.lng] for p in points])
+        
+        # Step 1: Initialize with K-Means++
+        print("\n[Step 1] Initializing with K-Means++...")
+        kmeans = KMeans(n_clusters=k_clusters, init='k-means++', n_init=10, random_state=42)
+        labels = kmeans.fit_predict(coords)
+        
+        # Step 2: Enforce minimum points constraint
+        print("\n[Step 2] Enforcing minimum points constraint...")
+        labels = self._enforce_min_constraint(labels, coords, k_clusters, min_points_per_cluster)
+        
+        # Step 3: Compute initial MEC for each cluster
+        print("\n[Step 3] Computing Minimum Enclosing Circles...")
+        circles = []
+        for k in range(k_clusters):
+            cluster_points = coords[labels == k]
+            if len(cluster_points) > 0:
+                center, radius = self._minimum_enclosing_circle(cluster_points)
+                circles.append((center, radius))
+            else:
+                circles.append((cluster_points.mean(axis=0), 0))
+        
+        initial_area = sum(np.pi * r**2 for _, r in circles)
+        print(f"  Initial total area: {initial_area:.2f} km²")
+        
+        # Step 4: Optimize - Iteratively reassign points to reduce total area
+        print(f"\n[Step 4] Optimizing (max {max_iterations} iterations)...")
+        for iteration in range(max_iterations):
+            improved = False
+            
+            # Try moving each point to neighboring clusters
+            for i in range(n):
+                current_cluster = labels[i]
+                
+                # Check if we can move this point (maintain min constraint)
+                if sum(labels == current_cluster) <= min_points_per_cluster:
+                    continue
+                
+                # Try moving to each other cluster
+                best_cluster = current_cluster
+                best_area_reduction = 0
+                
+                for k in range(k_clusters):
+                    if k == current_cluster:
+                        continue
+                    
+                    # Temporarily move point
+                    test_labels = labels.copy()
+                    test_labels[i] = k
+                    
+                    # Check constraint
+                    if sum(test_labels == k) < min_points_per_cluster:
+                        continue
+                    
+                    # Compute new total area
+                    test_area = self._compute_total_area(coords, test_labels, k_clusters)
+                    current_area = self._compute_total_area(coords, labels, k_clusters)
+                    
+                    area_reduction = current_area - test_area
+                    if area_reduction > best_area_reduction:
+                        best_area_reduction = area_reduction
+                        best_cluster = k
+                
+                # Apply best move
+                if best_cluster != current_cluster and best_area_reduction > 0.01:
+                    labels[i] = best_cluster
+                    improved = True
+            
+            # Compute new circles
+            circles = []
+            for k in range(k_clusters):
+                cluster_points = coords[labels == k]
+                if len(cluster_points) > 0:
+                    center, radius = self._minimum_enclosing_circle(cluster_points)
+                    circles.append((center, radius))
+                else:
+                    circles.append((cluster_points.mean(axis=0) if len(cluster_points) > 0 else np.array([0, 0]), 0))
+            
+            total_area = sum(np.pi * r**2 for _, r in circles)
+            print(f"  Iteration {iteration + 1}: Total area = {total_area:.2f} km²")
+            
+            if not improved:
+                print(f"  Converged at iteration {iteration + 1}")
+                break
+        
+        final_area = sum(np.pi * r**2 for _, r in circles)
+        print(f"\n  Final total area: {final_area:.2f} km²")
+        print(f"  Area reduction: {(initial_area - final_area) / initial_area * 100:.1f}%")
+        
+        # Build result
+        days = []
+        mat = dist_matrix.to_list()
+        
+        for cluster_idx in range(k_clusters):
+            cluster_indices = [i for i in range(n) if labels[i] == cluster_idx]
+            cluster_points = [points[i] for i in cluster_indices]
+            
+            if len(cluster_points) == 0:
+                continue
+            
+            # Optimize order within cluster
+            optimized_indices = self._optimize_order(cluster_indices, mat)
+            optimized_points = [points[i] for i in optimized_indices]
+            
+            # Calculate distance
+            drive_dist = sum(mat[optimized_indices[i]][optimized_indices[i + 1]]
+                           for i in range(len(optimized_indices) - 1))
+            drive_time_s = self._estimate_drive_time_s(drive_dist)
+            stop_min = len(optimized_points) * self.config.constraints.stop_time_per_point_min
+            total_s = drive_time_s + stop_min * 60 + self.config.constraints.roundtrip_overhead_seconds
+            
+            # Get MEC info
+            center, radius = circles[cluster_idx]
+            
+            days.append(DayPlan(
+                day=cluster_idx + 1,
+                points=optimized_points,
+                drive_distance_km=round(drive_dist, 1),
+                drive_time_min=round(drive_time_s / 60, 1),
+                stop_time_min=stop_min,
+                total_time_hours=round(total_s / 3600, 1),
+                metadata={
+                    "mec_center": center.tolist(),
+                    "mec_radius_km": round(radius, 2),
+                    "mec_area_km2": round(np.pi * radius**2, 2),
+                }
+            ))
+        
+        return PlanResult(
+            strategy_name=f"J-Style(K={k_clusters},min={min_points_per_cluster})",
+            days=days,
+            all_points=points,
+            metrics={
+                "total_area_km2": round(final_area, 2),
+                "k_clusters": k_clusters,
+                "min_points_per_cluster": min_points_per_cluster,
+            }
+        )
+    
+    def _enforce_min_constraint(self, labels, coords, k_clusters, min_points):
+        """Enforce minimum points per cluster constraint."""
+        n = len(coords)
+        labels = labels.copy()
+        
+        for _ in range(100):  # Max iterations
+            # Find clusters violating constraint
+            violating = [k for k in range(k_clusters) if sum(labels == k) < min_points]
+            
+            if not violating:
+                break
+            
+            # For each violating cluster, steal points from largest cluster
+            for k in violating:
+                largest_k = max(range(k_clusters), key=lambda x: sum(labels == x))
+                if largest_k == k:
+                    continue
+                
+                # Find points closest to violating cluster center
+                cluster_center = coords[labels == k].mean(axis=0) if sum(labels == k) > 0 else coords[labels == largest_k].mean(axis=0)
+                candidate_indices = [i for i in range(n) if labels[i] == largest_k]
+                
+                # Sort by distance to violating cluster center
+                candidate_indices.sort(key=lambda i: np.sum((coords[i] - cluster_center)**2))
+                
+                # Move points
+                points_to_move = min_points - sum(labels == k)
+                for i in candidate_indices[:points_to_move]:
+                    labels[i] = k
+        
+        return labels
+    
+    def _minimum_enclosing_circle(self, points):
+        """
+        Compute Minimum Enclosing Circle using Welzl's algorithm (iterative approximation).
+        
+        Returns: (center, radius)
+        """
+        if len(points) == 0:
+            return np.array([0, 0]), 0
+        elif len(points) == 1:
+            return points[0], 0
+        elif len(points) == 2:
+            center = (points[0] + points[1]) / 2
+            radius = np.linalg.norm(points[0] - points[1]) / 2
+            return center, radius
+        
+        # Iterative approximation
+        # Start with bounding circle of first 3 points
+        center = points[:3].mean(axis=0)
+        radius = max(np.linalg.norm(points[i] - center) for i in range(3))
+        
+        # Iteratively expand to include all points
+        for _ in range(100):
+            # Find point furthest from center
+            distances = [np.linalg.norm(p - center) for p in points]
+            max_idx = np.argmax(distances)
+            max_dist = distances[max_idx]
+            
+            if max_dist <= radius:
+                break
+            
+            # Expand circle to include this point
+            furthest_point = points[max_idx]
+            direction = furthest_point - center
+            direction = direction / np.linalg.norm(direction)
+            
+            # Move center towards furthest point
+            center = center + direction * (max_dist - radius) / 2
+            radius = max_dist
+        
+        return center, radius
+    
+    def _compute_total_area(self, coords, labels, k_clusters):
+        """Compute total MEC area for all clusters."""
+        import numpy as np
+        total_area = 0
+        
+        for k in range(k_clusters):
+            cluster_points = coords[labels == k]
+            if len(cluster_points) > 0:
+                _, radius = self._minimum_enclosing_circle(cluster_points)
+                total_area += np.pi * radius**2
+        
+        return total_area
+    
+    def _optimize_order(self, indices: List[int], dist_matrix: List[List[float]]) -> List[int]:
+        """Optimize visit order within a cluster using nearest neighbor heuristic."""
+        if len(indices) <= 2:
+            return indices
+        
+        remaining = set(indices)
+        order = [indices[0]]
+        remaining.remove(indices[0])
+        
+        while remaining:
+            current = order[-1]
+            nearest = min(remaining, key=lambda j: dist_matrix[current][j])
+            order.append(nearest)
+            remaining.remove(nearest)
+        
+        return order
