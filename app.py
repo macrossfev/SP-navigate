@@ -871,6 +871,7 @@ def generate_pre_plan(points_df, strategy, max_daily_points, cluster_method="cen
                       j_k_clusters=5, j_min_points=10, j_max_iter=50):
     """Generate pre-planning preview with clustering and visualization."""
     import sys
+    import numpy as np
     sys.path.insert(0, str(Path(__file__).parent / "src"))
     from navigate.core.models import Point
     from navigate.distance.haversine import haversine
